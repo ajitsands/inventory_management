@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node -e \"const fs=require('fs'); fs.cpSync('dist/assets', '../assets', {recursive:true}); fs.copyFileSync('dist/logo.png', '../logo.png');\"",
     "preview": "vite preview"
   },
   "dependencies": {
