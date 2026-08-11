@@ -41,7 +41,9 @@ class QuotationController extends Controller
     public function getOpenByVendor()
     {
         $this->requireAuth();
-        $vendorId = UrlSecurity::decrypt($_GET['vendor_id'] ?? null);
+        $rawVendorId = UrlSecurity::decrypt($_GET['vendor_id'] ?? null);
+        $vendorId = !empty($rawVendorId) ? (int)$rawVendorId : (int)($_GET['vendor_id'] ?? 0);
+
         if (!$vendorId) {
             $this->json(['success' => true, 'quotations' => []]);
             return;
@@ -79,12 +81,35 @@ class QuotationController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $data = $this->getRequestBody();
 
-        $vendorId = UrlSecurity::decrypt($data['vendor_id'] ?? null);
+        $rawVendorId = UrlSecurity::decrypt($data['vendor_id'] ?? null);
+        $vendorId = !empty($rawVendorId) ? (int)$rawVendorId : (int)($data['raw_vendor_id'] ?? $data['vendor_id'] ?? 0);
+
         $items = $data['items'] ?? [];
 
         if (!$vendorId || empty($items) || !is_array($items)) {
-            $this->json(['error' => 'Vendor and at least 1 item line are required.'], 400);
+            $this->error('Please select a valid Vendor and add at least 1 item line.', 400);
             return;
+        }
+
+        // Validate items before starting transaction
+        $validatedLines = [];
+        foreach ($items as $idx => $line) {
+            $rawItemId = UrlSecurity::decrypt($line['item_id'] ?? null);
+            $itemId = !empty($rawItemId) ? (int)$rawItemId : (int)($line['raw_item_id'] ?? $line['item_id'] ?? 0);
+            $qty = (int)($line['ordered_qty'] ?? 0);
+            $price = (float)($line['unit_price'] ?? 0);
+
+            if (!$itemId || $qty <= 0) {
+                $this->error("Line #" . ($idx + 1) . " requires a valid item selection and quantity greater than 0.", 400);
+                return;
+            }
+
+            $validatedLines[] = [
+                'item_id' => $itemId,
+                'ordered_qty' => $qty,
+                'unit_price' => $price,
+                'subtotal' => $price * $qty
+            ];
         }
 
         $pdo = Model::getDB();
@@ -96,8 +121,8 @@ class QuotationController extends Controller
             $expectedDate = !empty($data['expected_delivery_date']) ? $data['expected_delivery_date'] : null;
 
             $totalAmount = 0.00;
-            foreach ($items as $line) {
-                $totalAmount += (float)($line['unit_price'] ?? 0) * (int)($line['ordered_qty'] ?? 1);
+            foreach ($validatedLines as $line) {
+                $totalAmount += $line['subtotal'];
             }
 
             $stmtHeader = $pdo->prepare("INSERT INTO `vendor_quotations`
@@ -120,18 +145,13 @@ class QuotationController extends Controller
                 (`quotation_id`, `item_id`, `ordered_qty`, `received_qty`, `unit_price`, `subtotal`)
                 VALUES (?, ?, ?, 0, ?, ?)");
 
-            foreach ($items as $line) {
-                $itemId = UrlSecurity::decrypt($line['item_id']);
-                $qty = (int)$line['ordered_qty'];
-                $price = (float)$line['unit_price'];
-                $subtotal = $price * $qty;
-
+            foreach ($validatedLines as $line) {
                 $stmtItem->execute([
                     $quotationId,
-                    $itemId,
-                    $qty,
-                    $price,
-                    $subtotal
+                    $line['item_id'],
+                    $line['ordered_qty'],
+                    $line['unit_price'],
+                    $line['subtotal']
                 ]);
             }
 
@@ -153,7 +173,7 @@ class QuotationController extends Controller
 
         } catch (\Exception $e) {
             Model::rollBack();
-            $this->json(['error' => 'Failed to create quotation: ' . $e->getMessage()], 500);
+            $this->error('Failed to create quotation: ' . $e->getMessage(), 500);
         }
     }
 
@@ -162,11 +182,12 @@ class QuotationController extends Controller
         $user = $this->requireRoles(['ADMIN']);
         $data = $this->getRequestBody();
 
-        $quotationId = UrlSecurity::decrypt($data['quotation_id'] ?? null);
+        $rawQuotationId = UrlSecurity::decrypt($data['quotation_id'] ?? null);
+        $quotationId = !empty($rawQuotationId) ? (int)$rawQuotationId : (int)($data['quotation_id'] ?? 0);
         $reason = trim($data['reason'] ?? 'Manually closed by Admin');
 
         if (!$quotationId) {
-            $this->json(['error' => 'Quotation ID is required.'], 400);
+            $this->error('Quotation ID is required.', 400);
             return;
         }
 

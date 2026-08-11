@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { FileText, Plus, Trash2, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
+import { FileText, Plus, Trash2, CheckCircle2, AlertCircle, Lock, HelpCircle } from 'lucide-react';
 
 export default function VendorQuotations() {
   const [quotations, setQuotations] = useState([]);
@@ -21,6 +21,9 @@ export default function VendorQuotations() {
   const [quotationDate, setQuotationDate] = useState(todayDate());
   const [expectedDate, setExpectedDate] = useState(futureDate(7));
   const [lineItems, setLineItems] = useState([createEmptyLine()]);
+
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Force close modal state
   const [showCloseModal, setShowCloseModal] = useState(false);
@@ -74,32 +77,48 @@ export default function VendorQuotations() {
     setLineItems(updated);
   };
 
-  const addLine = () => setLineItems([...lineItems, createEmptyLine()]);
+  const addLine = () => setLineItems(prev => [...prev, createEmptyLine()]);
+
   const removeLine = (index) => {
     if (lineItems.length > 1) {
       setLineItems(lineItems.filter((_, i) => i !== index));
     }
   };
 
+  // Handle Enter key on Unit Price input -> automatically add new line item
+  const handleKeyDownUnitPrice = (e, index) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addLine();
+    }
+  };
+
   const calculateTotal = () => lineItems.reduce((acc, l) => acc + (parseFloat(l.unit_price || 0) * parseInt(l.ordered_qty || 0)), 0);
 
-  const handleSubmit = async (e) => {
+  // Validate form and open confirmation modal
+  const handleGenerateClick = (e) => {
     e.preventDefault();
     setMessage(null);
 
     if (!vendorId) {
-      setMessage({ type: 'error', text: 'Please select a vendor.' });
+      setMessage({ type: 'error', text: 'Please select a vendor / supplier.' });
       return;
     }
 
     for (let i = 0; i < lineItems.length; i++) {
       const line = lineItems[i];
       if (!line.item_id || !line.unit_price || !line.ordered_qty) {
-        setMessage({ type: 'error', text: `Please fill all required fields for line #${i + 1}.` });
+        setMessage({ type: 'error', text: `Please fill all required fields for line item #${i + 1}.` });
         return;
       }
     }
 
+    setShowConfirmModal(true);
+  };
+
+  // Execute Quotation Creation on "Yes"
+  const confirmCreateQuotation = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
     try {
       const payload = {
@@ -115,7 +134,7 @@ export default function VendorQuotations() {
       });
 
       if (res.success) {
-        setMessage({ type: 'success', text: `Quotation / PO ${res.quotation_no} generated successfully!` });
+        setMessage({ type: 'success', text: `Vendor Quotation / PO ${res.quotation_no} generated successfully!` });
         setLineItems([createEmptyLine()]);
         setActiveTab('open');
         loadData();
@@ -271,7 +290,7 @@ export default function VendorQuotations() {
 
       {/* Tab 1: Create Form */}
       {activeTab === 'create' && (
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs min-h-[600px] flex flex-col justify-between">
+        <form onSubmit={handleGenerateClick} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs min-h-[600px] flex flex-col justify-between">
           <div className="space-y-6">
             <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Generate Vendor Quotation / Purchase Order</h3>
@@ -310,12 +329,14 @@ export default function VendorQuotations() {
               </div>
             </div>
 
-            {/* Line Items Container with Full Bottom Height & Generous Spacing */}
+            {/* Line Items Container */}
             <div className="pt-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Quotation Items & Quantities</h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Select items from Item Master catalog and specify ordered quantities and unit prices</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Select item, set quantity & price. Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border text-[10px] font-mono">Enter</kbd> on Unit Price to add next line automatically.
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -326,7 +347,7 @@ export default function VendorQuotations() {
                 </button>
               </div>
 
-              {/* Table wrapper with min-height up to bottom of page */}
+              {/* Table wrapper with min-height */}
               <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 min-h-[380px] pb-48">
                 <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
@@ -374,6 +395,7 @@ export default function VendorQuotations() {
                               required
                               value={line.unit_price}
                               onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                              onKeyDown={(e) => handleKeyDownUnitPrice(e, index)}
                               placeholder="0.000"
                               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
                             />
@@ -417,6 +439,43 @@ export default function VendorQuotations() {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Confirmation Modal Popup: Do you want to generate the quotation? */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-brand-blue" />
+                Confirm Quotation Generation
+              </h3>
+              <button onClick={() => setShowConfirmModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+              Do you want to generate the Vendor Quotation / Purchase Order for total value of <strong>{formatCurrency(calculateTotal(), currencyCode, decimalPlaces)}</strong>?
+            </p>
+
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200"
+              >
+                No, Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmCreateQuotation}
+                disabled={submitting}
+                className="px-6 py-2 rounded-xl bg-brand-blue text-white text-xs font-bold shadow-md glow-blue hover:brightness-110 flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Yes, Generate Quotation
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tab 2: Open POs */}
