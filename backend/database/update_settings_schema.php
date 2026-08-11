@@ -34,49 +34,26 @@ try {
         `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    // 3. Seed default system settings if empty
-    $stmt = $pdo->query("SELECT COUNT(*) as cnt FROM `system_settings`");
-    if ($stmt->fetch(PDO::FETCH_ASSOC)['cnt'] == 0) {
-        echo "Seeding default store settings...\n";
-        $defaultSettings = [
-            'store_name' => 'Organization Central Inventory',
-            'timezone' => 'Asia/Bahrain',
-            'currency_code' => 'BHD',
-            'currency_symbol' => 'BD',
-            'vat_percent' => '10.00',
-            'decimal_places' => '3', // 3 for BHD, 2 for others
-            'company_address' => 'Central Highway, Manama, Kingdom of Bahrain',
-            'company_phone' => '+973 1700 0000',
-            'company_email' => 'admin@organization.bh'
-        ];
-        $stmtInsert = $pdo->prepare("INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES (?, ?)");
-        foreach ($defaultSettings as $k => $v) {
-            $stmtInsert->execute([$k, $v]);
-        }
+    // 3. Seed default system settings if empty or missing date_format
+    echo "Seeding default store settings...\n";
+    $defaultSettings = [
+        'store_name' => 'Organization Central Inventory',
+        'timezone' => 'Asia/Bahrain',
+        'currency_code' => 'BHD',
+        'currency_symbol' => 'BD',
+        'vat_percent' => '10.00',
+        'decimal_places' => '3', // 3 for BHD, 2 for others
+        'date_format' => 'DD/MM/YYYY', // DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, YYYY/MM/DD, DD-MMM-YYYY
+        'company_address' => 'Central Highway, Manama, Kingdom of Bahrain',
+        'company_phone' => '+973 1700 0000',
+        'company_email' => 'admin@organization.bh'
+    ];
+    $stmtInsert = $pdo->prepare("INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    foreach ($defaultSettings as $k => $v) {
+        $stmtInsert->execute([$k, $v]);
     }
 
-    // 4. Seed default auto-increment sequence formats if empty
-    $stmtSeq = $pdo->query("SELECT COUNT(*) as cnt FROM `system_sequences`");
-    if ($stmtSeq->fetch(PDO::FETCH_ASSOC)['cnt'] == 0) {
-        echo "Seeding default sequence prefixes & templates...\n";
-        $defaultSequences = [
-            ['sequence_key' => 'vendor', 'prefix' => 'VND-', 'current_val' => 2, 'padding_length' => 4, 'format_template' => '{PREFIX}{SEQ}'],
-            ['sequence_key' => 'branch', 'prefix' => 'LOC-SUB-', 'current_val' => 2, 'padding_length' => 4, 'format_template' => '{PREFIX}{SEQ}'],
-            ['sequence_key' => 'clinic', 'prefix' => 'LOC-CLN-', 'current_val' => 2, 'padding_length' => 4, 'format_template' => '{PREFIX}{SEQ}'],
-            ['sequence_key' => 'customer', 'prefix' => 'CUST-', 'current_val' => 4, 'padding_length' => 4, 'format_template' => '{PREFIX}{SEQ}'],
-            ['sequence_key' => 'item', 'prefix' => 'ITM-', 'current_val' => 5, 'padding_length' => 4, 'format_template' => '{PREFIX}{SEQ}'],
-            ['sequence_key' => 'purchase_invoice', 'prefix' => 'PO-INV/', 'current_val' => 1, 'padding_length' => 5, 'format_template' => '{PREFIX}{YEAR}/{SEQ}'],
-            ['sequence_key' => 'branch_transfer', 'prefix' => 'BINV/', 'current_val' => 1, 'padding_length' => 5, 'format_template' => '{PREFIX}{YEAR}/{SEQ}'],
-            ['sequence_key' => 'sales_invoice', 'prefix' => 'SA-INV/', 'current_val' => 1, 'padding_length' => 5, 'format_template' => '{PREFIX}{YEAR}/{SEQ}'],
-            ['sequence_key' => 'quotation', 'prefix' => 'SA-QTN/', 'current_val' => 0, 'padding_length' => 4, 'format_template' => '{PREFIX}{YEAR}/{SEQ}']
-        ];
-        $stmtInsertSeq = $pdo->prepare("INSERT INTO `system_sequences` (`sequence_key`, `prefix`, `current_val`, `padding_length`, `format_template`) VALUES (?, ?, ?, ?, ?)");
-        foreach ($defaultSequences as $seq) {
-            $stmtInsertSeq->execute([$seq['sequence_key'], $seq['prefix'], $seq['current_val'], $seq['padding_length'], $seq['format_template']]);
-        }
-    }
-
-    echo "Store settings & sequences schema update completed!\n";
+    echo "Store settings & date_format schema update completed!\n";
 } catch (Exception $e) {
     echo "Error updating settings schema: " . $e->getMessage() . "\n";
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
+import { formatDate } from '../utils/date';
 import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp } from 'lucide-react';
 import { MOVEMENT_BADGES } from '../theme/colors';
 
@@ -35,7 +36,7 @@ export default function ReportsPage() {
     {
       header: 'Timestamp',
       accessor: 'timestamp',
-      render: (m) => <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">{m.timestamp}</span>
+      render: (m) => <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">{formatDate(m.timestamp)}</span>
     },
     {
       header: 'Movement Type',
@@ -106,7 +107,7 @@ export default function ReportsPage() {
     {
       header: 'Expiry Date',
       accessor: 'expiry_date',
-      render: (a) => <span className="font-bold text-rose-600 dark:text-rose-400">{a.expiry_date}</span>
+      render: (a) => <span className="font-bold text-rose-600 dark:text-rose-400">{formatDate(a.expiry_date)}</span>
     },
     {
       header: 'Days Remaining',

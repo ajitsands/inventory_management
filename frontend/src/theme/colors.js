@@ -10,16 +10,27 @@ export const BRAND_COLORS = {
 };
 
 export const ROLE_BADGES = {
-  ADMIN: { label: 'Admin (Full System)', bg: 'bg-purple-900/60 text-purple-200 border-purple-500/40' },
-  STORE_MANAGER: { label: 'Store Manager', bg: 'bg-blue-900/60 text-blue-200 border-blue-500/40' },
-  OPD_USER: { label: 'Clinic OPD Dispenser', bg: 'bg-emerald-900/60 text-emerald-200 border-emerald-500/40' },
-  AUDITOR: { label: 'Auditor (Read-Only)', bg: 'bg-amber-900/60 text-amber-200 border-amber-500/40' },
+  ADMIN: { label: 'Admin (Full System)', bg: 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300' },
+  STORE_MANAGER: { label: 'Store Manager', bg: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300' },
+  OPD_USER: { label: 'Clinic OPD Dispenser', bg: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' },
+  AUDITOR: { label: 'Auditor (Read-Only)', bg: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300' },
 };
 
 export const MOVEMENT_BADGES = {
-  PURCHASE: { label: 'Vendor Invoice Entry', color: 'text-emerald-400 bg-emerald-950/60 border-emerald-500/30' },
-  BRANCH_TRANSFER: { label: 'Sub-Branch Invoiced Transfer', color: 'text-blue-400 bg-blue-950/60 border-blue-500/30' },
-  CLINIC_TRANSFER: { label: 'Clinic Stock Transfer', color: 'text-cyan-400 bg-cyan-950/60 border-cyan-500/30' },
-  CUSTOMER_SALE: { label: 'OPD Patient Sale (FIFO)', color: 'text-amber-400 bg-amber-950/60 border-amber-500/30' },
-  ADJUSTMENT: { label: 'Stock Adjustment', color: 'text-purple-400 bg-purple-950/60 border-purple-500/30' },
+  PURCHASE: { label: 'Vendor Invoice Entry', color: 'text-emerald-700 bg-emerald-100 border-emerald-300 dark:text-emerald-300 dark:bg-emerald-950/60' },
+  BRANCH_TRANSFER: { label: 'Sub-Branch Invoiced Transfer', color: 'text-blue-700 bg-blue-100 border-blue-300 dark:text-blue-300 dark:bg-blue-950/60' },
+  CLINIC_TRANSFER: { label: 'Clinic Stock Transfer', color: 'text-cyan-700 bg-cyan-100 border-cyan-300 dark:text-cyan-300 dark:bg-cyan-950/60' },
+  CUSTOMER_SALE: { label: 'OPD Patient Sale (FIFO)', color: 'text-amber-700 bg-amber-100 border-amber-300 dark:text-amber-300 dark:bg-amber-950/60' },
+  ADJUSTMENT: { label: 'Stock Adjustment', color: 'text-purple-700 bg-purple-100 border-purple-300 dark:text-purple-300 dark:bg-purple-950/60' },
+};
+
+export const MODULE_BADGES = {
+  PURCHASE: { label: 'Vendor Purchase', bg: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' },
+  BRANCH_TRANSFER: { label: 'Branch Transfer', bg: 'bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-950 dark:text-cyan-300' },
+  CLINIC_TRANSFER: { label: 'Clinic Transfer', bg: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300' },
+  OPD_DISPENSING: { label: 'OPD Dispensing POS', bg: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300' },
+  STORE_SETTINGS: { label: 'Store Settings', bg: 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300' },
+  MASTER_VENDOR: { label: 'Master Vendor', bg: 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300' },
+  MASTER_CUSTOMER: { label: 'Master Customer', bg: 'bg-pink-100 text-pink-700 border-pink-300 dark:bg-pink-950 dark:text-pink-300' },
+  MASTER_LOCATION: { label: 'Master Location', bg: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300' },
 };

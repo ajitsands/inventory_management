@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import SearchableSelect from '../components/common/SearchableSelect';
-import { Settings, Save, CheckCircle2, AlertCircle, Globe, DollarSign, Percent, Hash, Info, FileText } from 'lucide-react';
+import { formatDate } from '../utils/date';
+import { Settings, Save, CheckCircle2, AlertCircle, Globe, Calendar, Percent, Hash } from 'lucide-react';
 
 export default function StoreSettings() {
   const [settings, setSettings] = useState({
@@ -10,6 +11,7 @@ export default function StoreSettings() {
     currency_code: 'BHD',
     vat_percent: '10.00',
     decimal_places: '3',
+    date_format: 'DD/MM/YYYY',
     company_address: '',
     company_phone: '',
     company_email: ''
@@ -85,7 +87,6 @@ export default function StoreSettings() {
     setSequences(updated);
   };
 
-  // Preview formatted sequence string
   const renderPreview = (seq) => {
     const year = new Date().getFullYear();
     const nextVal = (parseInt(seq.current_val || 0) + 1);
@@ -99,6 +100,7 @@ export default function StoreSettings() {
   };
 
   const isThreeDecimals = ['BHD', 'KWD', 'OMR'].includes(settings.currency_code);
+  const sampleToday = new Date().toISOString().split('T')[0];
 
   return (
     <div className="space-y-6">
@@ -109,7 +111,7 @@ export default function StoreSettings() {
             <Settings className="w-5 h-5 text-brand-blue" />
             Store Settings & Auto-Increment Numbering System
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Configure regional GCC currency rules, VAT rates, timezone, and auto-incremental 4-digit master & invoice numbering templates</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Configure regional GCC currency rules, custom Date Formats (DD/MM/YYYY, YYYY/MM/DD), VAT rates, and auto-incremental 4-digit master & invoice prefixes</p>
         </div>
       </div>
 
@@ -126,7 +128,7 @@ export default function StoreSettings() {
       <form onSubmit={handleSettingsSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-            <Globe className="w-4 h-4 text-brand-blue" /> Regional Currency, Timezone & Tax Configuration
+            <Globe className="w-4 h-4 text-brand-blue" /> Regional Currency, Timezone & Date Display Configuration
           </h3>
           <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30">
             {isThreeDecimals ? '3 Decimals Enforced (GCC)' : '2 Decimals Enforced'}
@@ -164,6 +166,21 @@ export default function StoreSettings() {
           </div>
 
           <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Date Display Format (Select2 Search) *</label>
+            <SearchableSelect
+              options={[
+                { value: 'DD/MM/YYYY', label: `DD/MM/YYYY (e.g. ${formatDate(sampleToday, 'DD/MM/YYYY')})` },
+                { value: 'MM/DD/YYYY', label: `MM/DD/YYYY (e.g. ${formatDate(sampleToday, 'MM/DD/YYYY')})` },
+                { value: 'YYYY-MM-DD', label: `YYYY-MM-DD (e.g. ${formatDate(sampleToday, 'YYYY-MM-DD')})` },
+                { value: 'YYYY/MM/DD', label: `YYYY/MM/DD (e.g. ${formatDate(sampleToday, 'YYYY/MM/DD')})` },
+                { value: 'DD-MMM-YYYY', label: `DD-MMM-YYYY (e.g. ${formatDate(sampleToday, 'DD-MMM-YYYY')})` }
+              ]}
+              value={settings.date_format}
+              onChange={(val) => setSettings({ ...settings, date_format: val })}
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Default Base Currency *</label>
             <SearchableSelect
               options={[
@@ -186,7 +203,7 @@ export default function StoreSettings() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Decimal Places (Auto-Configured)</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Decimal Precision (Auto Rule)</label>
             <input
               type="text"
               disabled
@@ -210,16 +227,6 @@ export default function StoreSettings() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Official Support Phone</label>
-            <input
-              type="text"
-              value={settings.company_phone}
-              onChange={(e) => setSettings({ ...settings, company_phone: e.target.value })}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
-            />
-          </div>
-
           <div className="md:col-span-3">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Company Physical Address</label>
             <input
@@ -237,7 +244,7 @@ export default function StoreSettings() {
             disabled={submittingSettings}
             className="px-6 py-2.5 rounded-xl bg-brand-blue text-white font-bold text-xs shadow-md glow-blue hover:brightness-110 active:scale-[0.99] transition-all flex items-center gap-2"
           >
-            <Save className="w-4 h-4" /> Save Regional Settings
+            <Save className="w-4 h-4" /> Save Store Settings
           </button>
         </div>
       </form>

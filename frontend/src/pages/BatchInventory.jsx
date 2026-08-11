@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
+import { formatDate } from '../utils/date';
 import { Boxes, Building2 } from 'lucide-react';
 
 export default function BatchInventory() {
@@ -90,7 +91,7 @@ export default function BatchInventory() {
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
             isExpiringSoon ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40' : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300'
           }`}>
-            {b.expiry_date}
+            {formatDate(b.expiry_date)}
           </span>
         );
       }

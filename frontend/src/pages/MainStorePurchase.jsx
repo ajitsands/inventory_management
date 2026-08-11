@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
+import { formatDate } from '../utils/date';
 import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function MainStorePurchase() {
@@ -147,7 +148,7 @@ export default function MainStorePurchase() {
       render: (p) => (
         <div>
           <span className="font-mono text-slate-800 dark:text-slate-200 font-semibold">{p.po_no}</span>
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{p.po_date}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{formatDate(p.po_date)}</span>
         </div>
       )
     },
@@ -174,7 +175,7 @@ export default function MainStorePurchase() {
     {
       header: 'Date',
       accessor: 'created_at',
-      render: (p) => <span className="text-slate-500 dark:text-slate-400 font-mono">{p.created_at}</span>
+      render: (p) => <span className="text-slate-500 dark:text-slate-400 font-mono">{formatDate(p.created_at)}</span>
     }
   ];
 
