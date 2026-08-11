@@ -1,0 +1,52 @@
+<?php
+require_once __DIR__ . '/../../core/Model.php';
+
+class User extends Model {
+
+    public static function findByUsername(string $username) {
+        $pdo = self::getDB();
+        $stmt = $pdo->prepare("SELECT u.*, l.name AS location_name, l.code AS location_code, l.type AS location_type 
+                               FROM `users` u 
+                               LEFT JOIN `locations` l ON u.location_id = l.id 
+                               WHERE u.username = ? AND u.status = 'ACTIVE'");
+        $stmt->execute([$username]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public static function findById(int $id) {
+        $pdo = self::getDB();
+        $stmt = $pdo->prepare("SELECT u.id, u.username, u.full_name, u.email, u.role, u.location_id, u.status, u.created_at,
+                               l.name AS location_name, l.code AS location_code, l.type AS location_type 
+                               FROM `users` u 
+                               LEFT JOIN `locations` l ON u.location_id = l.id 
+                               WHERE u.id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public static function getAll() {
+        $pdo = self::getDB();
+        $stmt = $pdo->query("SELECT u.id, u.username, u.full_name, u.email, u.role, u.location_id, u.status, u.created_at,
+                                    l.name AS location_name, l.type AS location_type
+                             FROM `users` u 
+                             LEFT JOIN `locations` l ON u.location_id = l.id 
+                             ORDER BY u.id ASC");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public static function create(array $data) {
+        $pdo = self::getDB();
+        $hash = password_hash($data['password'], PASSWORD_BCRYPT);
+        $stmt = $pdo->prepare("INSERT INTO `users` (`username`, `full_name`, `email`, `password_hash`, `role`, `location_id`) 
+                               VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $data['username'],
+            $data['full_name'],
+            $data['email'],
+            $hash,
+            $data['role'],
+            $data['location_id'] ?? null
+        ]);
+        return $pdo->lastInsertId();
+    }
+}
