@@ -34,7 +34,7 @@ try {
         `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    // 3. Seed default system settings if empty or missing date_format
+    // 3. Seed default system settings if empty or missing vat_calculation_mode
     echo "Seeding default store settings...\n";
     $defaultSettings = [
         'store_name' => 'Organization Central Inventory',
@@ -42,8 +42,9 @@ try {
         'currency_code' => 'BHD',
         'currency_symbol' => 'BD',
         'vat_percent' => '10.00',
+        'vat_calculation_mode' => 'ITEM_WISE', // ITEM_WISE (Line Item Tax) vs TOTAL_BILL (Total Bill Tax After Discount)
         'decimal_places' => '3', // 3 for BHD, 2 for others
-        'date_format' => 'DD/MM/YYYY', // DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, YYYY/MM/DD, DD-MMM-YYYY
+        'date_format' => 'DD/MM/YYYY',
         'company_address' => 'Central Highway, Manama, Kingdom of Bahrain',
         'company_phone' => '+973 1700 0000',
         'company_email' => 'admin@organization.bh'
@@ -53,7 +54,7 @@ try {
         $stmtInsert->execute([$k, $v]);
     }
 
-    echo "Store settings & date_format schema update completed!\n";
+    echo "Store settings vat_calculation_mode schema update completed!\n";
 } catch (Exception $e) {
     echo "Error updating settings schema: " . $e->getMessage() . "\n";
 }

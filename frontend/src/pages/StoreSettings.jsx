@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
-import { Settings, Save, CheckCircle2, AlertCircle, Globe, Calendar, Percent, Hash } from 'lucide-react';
+import { Settings, Save, CheckCircle2, AlertCircle, Globe, Percent, Hash, Calculator } from 'lucide-react';
 
 export default function StoreSettings() {
   const [settings, setSettings] = useState({
@@ -10,6 +10,7 @@ export default function StoreSettings() {
     timezone: 'Asia/Bahrain',
     currency_code: 'BHD',
     vat_percent: '10.00',
+    vat_calculation_mode: 'ITEM_WISE',
     decimal_places: '3',
     date_format: 'DD/MM/YYYY',
     company_address: '',
@@ -111,7 +112,7 @@ export default function StoreSettings() {
             <Settings className="w-5 h-5 text-brand-blue" />
             Store Settings & Auto-Increment Numbering System
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Configure regional GCC currency rules, custom Date Formats (DD/MM/YYYY, YYYY/MM/DD), VAT rates, and auto-incremental 4-digit master & invoice prefixes</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Configure regional GCC currency rules, Item-Wise vs Total Bill VAT Calculation, custom Date Formats, and auto-incremental 4-digit prefixes</p>
         </div>
       </div>
 
@@ -128,7 +129,7 @@ export default function StoreSettings() {
       <form onSubmit={handleSettingsSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-            <Globe className="w-4 h-4 text-brand-blue" /> Regional Currency, Timezone & Date Display Configuration
+            <Globe className="w-4 h-4 text-brand-blue" /> Regional Currency, Timezone & Tax Configuration
           </h3>
           <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30">
             {isThreeDecimals ? '3 Decimals Enforced (GCC)' : '2 Decimals Enforced'}
@@ -203,17 +204,7 @@ export default function StoreSettings() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Decimal Precision (Auto Rule)</label>
-            <input
-              type="text"
-              disabled
-              value={`${isThreeDecimals ? '3 Decimals (0.000)' : '2 Decimals (0.00)'}`}
-              className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-brand-blue font-bold"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">VAT / Sales Tax Percentage (%) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Default Standard VAT Rate (%) *</label>
             <div className="relative">
               <input
                 type="number"
@@ -224,6 +215,40 @@ export default function StoreSettings() {
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
               />
               <Percent className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">VAT Calculation Method *</label>
+            <SearchableSelect
+              options={[
+                {
+                  value: 'ITEM_WISE',
+                  label: 'Line Item Tax (Pre-fill VAT % per item, editable per line)',
+                  sublabel: 'Default VAT % pre-filled for each line item; user can override per item'
+                },
+                {
+                  value: 'TOTAL_BILL',
+                  label: 'Total Bill Tax (Calculate VAT on Net Subtotal After Discount)',
+                  sublabel: 'Calculates VAT on total bill sum after applying any bill discount'
+                }
+              ]}
+              value={settings.vat_calculation_mode}
+              onChange={(val) => setSettings({ ...settings, vat_calculation_mode: val })}
+            />
+          </div>
+
+          <div className="md:col-span-3">
+            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+              <Calculator className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold">VAT Calculation Policy Notice:</strong>
+                {settings.vat_calculation_mode === 'ITEM_WISE' ? (
+                  <p className="mt-0.5">Currently set to <strong>Line Item Tax (ITEM_WISE)</strong>. When creating Purchase Bills or Patient Sales Invoices, every line item will automatically load with default <strong>{settings.vat_percent}%</strong> VAT, but users can edit individual item VAT rates (e.g. set 0% for tax-exempt medicine).</p>
+                ) : (
+                  <p className="mt-0.5">Currently set to <strong>Total Bill Tax (TOTAL_BILL)</strong>. Line items will not require individual tax rates. VAT of <strong>{settings.vat_percent}%</strong> will be calculated automatically on the final bill total <em>after subtracting any bill discounts</em>.</p>
+                )}
+              </div>
             </div>
           </div>
 

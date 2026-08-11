@@ -9,8 +9,11 @@ class SequenceService
         $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
         $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        // Ensure default fallback if empty
+        // Ensure default fallbacks
         if (!isset($rows['currency_code'])) $rows['currency_code'] = 'BHD';
+        if (!isset($rows['vat_percent'])) $rows['vat_percent'] = '10.00';
+        if (!isset($rows['vat_calculation_mode'])) $rows['vat_calculation_mode'] = 'ITEM_WISE'; // ITEM_WISE vs TOTAL_BILL
+        if (!isset($rows['date_format'])) $rows['date_format'] = 'DD/MM/YYYY';
         if (!isset($rows['decimal_places'])) {
             $rows['decimal_places'] = in_array($rows['currency_code'], ['BHD', 'KWD', 'OMR']) ? '3' : '2';
         }

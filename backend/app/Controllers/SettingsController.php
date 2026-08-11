@@ -31,7 +31,8 @@ class SettingsController extends Controller
 
         $allowedSettings = [
             'store_name', 'timezone', 'currency_code', 'currency_symbol',
-            'vat_percent', 'date_format', 'company_address', 'company_phone', 'company_email'
+            'vat_percent', 'vat_calculation_mode', 'date_format',
+            'company_address', 'company_phone', 'company_email'
         ];
 
         // Automatic decimal places rule: BHD, KWD, OMR = 3 decimals; rest = 2 decimals
