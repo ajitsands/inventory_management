@@ -5,6 +5,7 @@ import Header from './components/Header';
 import HorizontalNavbar from './components/HorizontalNavbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import MasterManagement from './pages/MasterManagement';
 import MainStorePurchase from './pages/MainStorePurchase';
 import SubBranchInvoicing from './pages/SubBranchInvoicing';
 import ClinicStockTransfer from './pages/ClinicStockTransfer';
@@ -30,6 +31,7 @@ function MainApp() {
       {/* Full Width Main Page Content Container */}
       <main className="flex-1 w-full px-6 py-6 overflow-y-auto">
         {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} />}
+        {activeTab === 'master-data' && <MasterManagement />}
         {activeTab === 'purchase' && <MainStorePurchase />}
         {activeTab === 'branch-transfer' && <SubBranchInvoicing />}
         {activeTab === 'clinic-transfer' && <ClinicStockTransfer />}

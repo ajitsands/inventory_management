@@ -1,0 +1,158 @@
+<?php
+namespace App\Controllers;
+
+use Core\Controller;
+use App\Models\Customer;
+use App\Services\AuditLogger;
+use Core\UrlSecurity;
+
+class CustomerController extends Controller
+{
+    public function index()
+    {
+        $customers = Customer::getAllWithTransactionCheck();
+        $encrypted = array_map(function($c) {
+            $c['id'] = UrlSecurity::encryptId($c['id']);
+            return $c;
+        }, $customers);
+
+        $this->json(['success' => true, 'customers' => $encrypted]);
+    }
+
+    public function store()
+    {
+        $user = $this->requireAuth();
+        $data = $this->getRequestBody();
+
+        $name = trim($data['name'] ?? '');
+        $code = trim($data['code'] ?? ('CUST-' . rand(1000, 9999)));
+        $phone = trim($data['phone'] ?? '');
+        $email = trim($data['email'] ?? '');
+        $address = trim($data['address'] ?? '');
+
+        if (empty($name)) {
+            $this->json(['error' => 'Customer name is required.'], 400);
+            return;
+        }
+
+        $existing = Customer::findWhere(['code' => $code]);
+        if ($existing) {
+            $code = 'CUST-' . rand(10000, 99999);
+        }
+
+        $id = Customer::create([
+            'name' => $name,
+            'code' => $code,
+            'phone' => $phone,
+            'email' => $email,
+            'address' => $address,
+            'status' => 'ACTIVE'
+        ]);
+
+        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'CREATE_CUSTOMER', null, [
+            'customer_id' => $id, 'name' => $name, 'code' => $code
+        ]);
+
+        $this->json([
+            'success' => true,
+            'message' => "Customer '{$name}' created successfully.",
+            'customer_id' => UrlSecurity::encryptId($id)
+        ]);
+    }
+
+    public function update()
+    {
+        $user = $this->requireAuth();
+        $data = $this->getRequestBody();
+
+        $id = $data['id'] ?? null;
+        if (!$id) {
+            $this->json(['error' => 'Customer ID is required.'], 400);
+            return;
+        }
+
+        $customer = Customer::find($id);
+        if (!$customer) {
+            $this->json(['error' => 'Customer not found.'], 404);
+            return;
+        }
+
+        $name = trim($data['name'] ?? $customer['name']);
+        $phone = trim($data['phone'] ?? $customer['phone']);
+        $email = trim($data['email'] ?? $customer['email']);
+        $address = trim($data['address'] ?? $customer['address']);
+
+        Customer::update($id, [
+            'name' => $name,
+            'phone' => $phone,
+            'email' => $email,
+            'address' => $address
+        ]);
+
+        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'UPDATE_CUSTOMER', $customer, [
+            'id' => $id, 'name' => $name
+        ]);
+
+        $this->json(['success' => true, 'message' => "Customer updated successfully."]);
+    }
+
+    public function toggleStatus()
+    {
+        $user = $this->requireAuth();
+        $data = $this->getRequestBody();
+
+        $id = $data['id'] ?? null;
+        if (!$id) {
+            $this->json(['error' => 'Customer ID is required.'], 400);
+            return;
+        }
+
+        $customer = Customer::find($id);
+        if (!$customer) {
+            $this->json(['error' => 'Customer not found.'], 404);
+            return;
+        }
+
+        $newStatus = ($customer['status'] === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
+        Customer::update($id, ['status' => $newStatus]);
+
+        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'TOGGLE_CUSTOMER_STATUS', ['status' => $customer['status']], ['status' => $newStatus]);
+
+        $this->json([
+            'success' => true,
+            'message' => "Customer status changed to {$newStatus}.",
+            'status' => $newStatus
+        ]);
+    }
+
+    public function destroy()
+    {
+        $user = $this->requireAuth();
+        $data = $this->getRequestBody();
+
+        $id = $data['id'] ?? null;
+        if (!$id) {
+            $this->json(['error' => 'Customer ID is required.'], 400);
+            return;
+        }
+
+        $customer = Customer::find($id);
+        if (!$customer) {
+            $this->json(['error' => 'Customer not found.'], 404);
+            return;
+        }
+
+        if (Customer::hasTransactions($id, $customer['name'])) {
+            $this->json([
+                'error' => "Cannot delete customer '{$customer['name']}'. Dispensing sales invoices exist for this customer."
+            ], 400);
+            return;
+        }
+
+        Customer::delete($id);
+
+        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'DELETE_CUSTOMER', $customer, null);
+
+        $this->json(['success' => true, 'message' => "Customer '{$customer['name']}' deleted successfully."]);
+    }
+}

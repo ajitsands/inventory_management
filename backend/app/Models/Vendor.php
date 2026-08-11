@@ -1,24 +1,34 @@
 <?php
-require_once __DIR__ . '/../../core/Model.php';
+namespace App\Models;
 
-class Vendor extends Model {
-    public static function getAll() {
-        $pdo = self::getDB();
-        return $pdo->query("SELECT * FROM `vendors` ORDER BY `name` ASC")->fetchAll(PDO::FETCH_ASSOC);
+use Core\Model;
+
+class Vendor extends Model
+{
+    protected static $table = 'vendors';
+
+    public static function getAllWithTransactionCheck()
+    {
+        $sql = "SELECT v.*,
+                    (SELECT COUNT(*) FROM purchase_invoices WHERE vendor_id = v.id) +
+                    (SELECT COUNT(*) FROM item_batches WHERE vendor_id = v.id) AS tx_count
+                FROM vendors v
+                ORDER BY v.id DESC";
+        $rows = static::query($sql);
+        return array_map(function($row) {
+            $row['tx_count'] = (int)$row['tx_count'];
+            $row['has_transactions'] = $row['tx_count'] > 0;
+            $row['delete_allowed'] = $row['tx_count'] === 0;
+            return $row;
+        }, $rows);
     }
 
-    public static function create(array $data) {
-        $pdo = self::getDB();
-        $stmt = $pdo->prepare("INSERT INTO `vendors` (`name`, `code`, `contact_person`, `phone`, `email`, `address`, `tax_id`) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $data['name'],
-            $data['code'],
-            $data['contact_person'] ?? null,
-            $data['phone'] ?? null,
-            $data['email'] ?? null,
-            $data['address'] ?? null,
-            $data['tax_id'] ?? null
-        ]);
-        return $pdo->lastInsertId();
+    public static function hasTransactions($id)
+    {
+        $sql = "SELECT 
+                    (SELECT COUNT(*) FROM purchase_invoices WHERE vendor_id = ?) +
+                    (SELECT COUNT(*) FROM item_batches WHERE vendor_id = ?) AS total_tx";
+        $row = static::queryOne($sql, [$id, $id]);
+        return ($row['total_tx'] ?? 0) > 0;
     }
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
+  Building2,
   ShoppingCart,
   GitPullRequest,
   Building,
@@ -18,6 +19,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'] },
+    { id: 'master-data', label: 'Master Entities', icon: Building2, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'purchase', label: 'Vendor Purchase (Main Store)', icon: ShoppingCart, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'branch-transfer', label: 'Sub-Branch Invoicing', icon: GitPullRequest, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'clinic-transfer', label: 'Clinic Stock Transfer', icon: Building, roles: ['ADMIN', 'STORE_MANAGER'] },

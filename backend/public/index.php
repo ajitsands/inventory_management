@@ -17,6 +17,25 @@ $router->post('/api/v1/users', ['AuthController', 'createUser']);
 $router->get('/api/v1/master-data', ['BatchController', 'getMasterData']);
 $router->get('/api/v1/stock/location', ['BatchController', 'getStockByLocation']);
 
+// Master Entity CRUD Routes (Vendors, Locations, Customers)
+$router->get('/api/v1/vendors', ['VendorController', 'index']);
+$router->post('/api/v1/vendors', ['VendorController', 'store']);
+$router->post('/api/v1/vendors/update', ['VendorController', 'update']);
+$router->post('/api/v1/vendors/toggle-status', ['VendorController', 'toggleStatus']);
+$router->post('/api/v1/vendors/delete', ['VendorController', 'destroy']);
+
+$router->get('/api/v1/locations', ['LocationController', 'index']);
+$router->post('/api/v1/locations', ['LocationController', 'store']);
+$router->post('/api/v1/locations/update', ['LocationController', 'update']);
+$router->post('/api/v1/locations/toggle-status', ['LocationController', 'toggleStatus']);
+$router->post('/api/v1/locations/delete', ['LocationController', 'destroy']);
+
+$router->get('/api/v1/customers', ['CustomerController', 'index']);
+$router->post('/api/v1/customers', ['CustomerController', 'store']);
+$router->post('/api/v1/customers/update', ['CustomerController', 'update']);
+$router->post('/api/v1/customers/toggle-status', ['CustomerController', 'toggleStatus']);
+$router->post('/api/v1/customers/delete', ['CustomerController', 'destroy']);
+
 // Movement Routes
 $router->post('/api/v1/purchase/create', ['PurchaseController', 'createPurchaseInvoice']);
 $router->get('/api/v1/purchase/list', ['PurchaseController', 'getPurchaseInvoices']);
