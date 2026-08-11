@@ -84,7 +84,7 @@ export default function ItemManagement() {
     setMessage(null);
 
     if (!csvText.trim()) {
-      alert('Please paste CSV / Excel item rows.');
+      setMessage({ type: 'error', text: 'Please paste CSV / Excel item rows.' });
       return;
     }
 
@@ -104,7 +104,7 @@ export default function ItemManagement() {
     }
 
     if (parsedItems.length === 0) {
-      alert('No valid item rows found in CSV text.');
+      setMessage({ type: 'error', text: 'No valid item rows found in CSV text.' });
       return;
     }
 

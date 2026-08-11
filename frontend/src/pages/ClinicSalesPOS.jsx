@@ -78,7 +78,7 @@ export default function ClinicSalesPOS() {
       if (existing.qty < batch.quantity_available) {
         setCart(cart.map(item => item.batch_id === batchId ? { ...item, qty: item.qty + 1 } : item));
       } else {
-        alert(`Cannot exceed available batch stock of ${batch.quantity_available} units.`);
+        setMessage({ type: 'error', text: `Cannot exceed available batch stock of ${batch.quantity_available} units.` });
       }
     } else {
       setCart([...cart, {
