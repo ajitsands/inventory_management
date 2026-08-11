@@ -1,15 +1,14 @@
 <?php
-namespace App\Controllers;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/Model.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
-use Core\Controller;
-use Core\Model;
-use App\Services\InventoryLedgerService;
-use App\Services\AuditLogger;
-use App\Services\SequenceService;
-
-class BranchTransferController extends Controller {
-
-    public function createBranchTransfer() {
+class BranchTransferController extends Controller
+{
+    public function createBranchTransfer()
+    {
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
@@ -106,7 +105,8 @@ class BranchTransferController extends Controller {
         }
     }
 
-    public function getTransfers() {
+    public function getTransfers()
+    {
         $this->requireAuth();
         $pdo = Model::getDB();
         $sql = "SELECT st.*, fl.name AS from_location_name, tl.name AS to_location_name, u.full_name AS created_by_name

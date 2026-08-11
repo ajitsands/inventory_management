@@ -1,16 +1,15 @@
 <?php
-namespace App\Controllers;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/Model.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Services/FifoAllocationEngine.php';
+require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
-use Core\Controller;
-use Core\Model;
-use App\Services\FifoAllocationEngine;
-use App\Services\InventoryLedgerService;
-use App\Services\AuditLogger;
-use App\Services\SequenceService;
-
-class SalesController extends Controller {
-
-    public function createSalesInvoice() {
+class SalesController extends Controller
+{
+    public function createSalesInvoice()
+    {
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER', 'OPD_USER']);
         $body = $this->getRequestBody();
 
@@ -127,7 +126,8 @@ class SalesController extends Controller {
         }
     }
 
-    public function getSalesInvoices() {
+    public function getSalesInvoices()
+    {
         $user = $this->requireAuth();
         $pdo = Model::getDB();
 

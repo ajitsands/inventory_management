@@ -1,16 +1,15 @@
 <?php
-namespace App\Controllers;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/Model.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Models/ItemBatch.php';
+require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
-use Core\Controller;
-use Core\Model;
-use App\Models\ItemBatch;
-use App\Services\InventoryLedgerService;
-use App\Services\AuditLogger;
-use App\Services\SequenceService;
-
-class PurchaseController extends Controller {
-
-    public function createPurchaseInvoice() {
+class PurchaseController extends Controller
+{
+    public function createPurchaseInvoice()
+    {
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
@@ -124,7 +123,8 @@ class PurchaseController extends Controller {
         }
     }
 
-    public function getPurchaseInvoices() {
+    public function getPurchaseInvoices()
+    {
         $this->requireAuth();
         $pdo = Model::getDB();
         $sql = "SELECT pi.*, v.name AS vendor_name, l.name AS location_name, u.full_name AS created_by_name

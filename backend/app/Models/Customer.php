@@ -1,7 +1,5 @@
 <?php
-namespace App\Models;
-
-use Core\Model;
+require_once __DIR__ . '/../../core/Model.php';
 
 class Customer extends Model
 {
