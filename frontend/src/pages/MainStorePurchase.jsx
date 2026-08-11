@@ -63,19 +63,22 @@ export default function MainStorePurchase() {
         apiFetch('/purchase/list'),
         apiFetch('/settings')
       ]);
-      setVendors(masterData.vendors || []);
-      setItems(masterData.items || []);
+      const vendorList = masterData.vendors || [];
+      const itemList = masterData.items || [];
+      setVendors(vendorList);
+      setItems(itemList);
       setPurchases(purchaseData.invoices || []);
       
       const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
 
-      if (masterData.vendors && masterData.vendors.length > 0) {
-        const firstVendorId = masterData.vendors[0].id;
-        setVendorId(firstVendorId);
-        fetchOpenQuotations(firstVendorId);
+      if (vendorList.length > 0) {
+        const firstVendor = vendorList[0];
+        setVendorId(firstVendor.id);
+        fetchOpenQuotations(firstVendor.id, firstVendor, itemList, setts);
+      } else {
+        setLineItems([createEmptyLine(setts.vat_percent || '10.00')]);
       }
-      setLineItems([createEmptyLine(setts.vat_percent || '10.00')]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -83,25 +86,29 @@ export default function MainStorePurchase() {
     }
   };
 
-  const fetchOpenQuotations = async (vId) => {
+  const fetchOpenQuotations = async (vId, vendorObj = null, masterItems = items, setts = settings) => {
     if (!vId) {
       setOpenQuotations([]);
       setSelectedQuotationId('');
       setPoNo(`PO-${dateString()}-${rand4()}`);
       return;
     }
+
+    const currentVendor = vendorObj || vendors.find(v => v.id === vId);
+    const queryParam = currentVendor?.raw_id || vId;
+
     try {
-      const res = await apiFetch(`/quotations/open-by-vendor?vendor_id=${encodeURIComponent(vId)}`);
+      const res = await apiFetch(`/quotations/open-by-vendor?vendor_id=${encodeURIComponent(queryParam)}`);
       const quots = res.quotations || [];
       setOpenQuotations(quots);
 
       if (quots.length > 0) {
         // Automatically select and populate the first active PO
-        handleQuotationSelect(quots[0].id, quots);
+        handleQuotationSelect(quots[0].id, quots, masterItems, setts);
       } else {
         setSelectedQuotationId('');
         setPoNo(`PO-${dateString()}-${rand4()}`);
-        setLineItems([createEmptyLine(settings.vat_percent || '10.00')]);
+        setLineItems([createEmptyLine(setts.vat_percent || '10.00')]);
       }
     } catch (err) {
       console.error(err);
@@ -121,33 +128,47 @@ export default function MainStorePurchase() {
     fetchOpenQuotations(vId);
   };
 
-  // Select PO Number and auto-populate all line items belonging to that PO
-  const handleQuotationSelect = (qId, sourceQuotations = openQuotations) => {
+  // Select PO Number and auto-populate PO Date & all line items belonging to that PO
+  const handleQuotationSelect = (qId, sourceQuotations = openQuotations, masterItems = items, setts = settings) => {
     setSelectedQuotationId(qId);
     if (!qId || qId === 'DIRECT') {
       setPoNo(`PO-${dateString()}-${rand4()}`);
-      setLineItems([createEmptyLine(settings.vat_percent || '10.00')]);
+      setPoDate(todayDate());
+      setLineItems([createEmptyLine(setts.vat_percent || '10.00')]);
       return;
     }
 
     const quotation = sourceQuotations.find(q => (q.id === qId || q.raw_id == qId || q.quotation_no === qId));
     if (!quotation) return;
 
+    // Automatically set PO Number & PO Date
     setPoNo(quotation.quotation_no);
-    setPoDate(quotation.quotation_date || todayDate());
+    if (quotation.quotation_date) {
+      setPoDate(quotation.quotation_date);
+    }
 
     if (quotation.items && quotation.items.length > 0) {
       const populatedLines = quotation.items.map(item => {
         const remainingQty = Math.max(1, item.ordered_qty - item.received_qty);
         const purchasePrice = parseFloat(item.unit_price || 0);
         const sellingPrice = (purchasePrice * 1.25).toFixed(3);
+
+        // Robust matching with Master Items list by raw_id, raw_item_id, id or code
+        const matchedMasterItem = masterItems.find(i => (
+          (i.raw_id && item.raw_item_id && String(i.raw_id) === String(item.raw_item_id)) ||
+          String(i.id) === String(item.item_id) ||
+          (i.item_code && item.item_code && i.item_code === item.item_code)
+        ));
+
+        const itemIdToUse = matchedMasterItem ? matchedMasterItem.id : item.item_id;
+
         return {
-          item_id: item.item_id,
-          batch_code: `BTC-${dateString()}-${rand4()}`,
-          purchase_price: purchasePrice.toString(),
-          selling_price: sellingPrice.toString(),
-          mrp: sellingPrice.toString(),
-          vat_percent: settings.vat_percent || '10.00',
+          item_id: itemIdToUse,
+          batch_code: `BTC-${matchedMasterItem ? matchedMasterItem.item_code : dateString()}-${rand4()}`,
+          purchase_price: purchasePrice.toFixed(3),
+          selling_price: sellingPrice,
+          mrp: sellingPrice,
+          vat_percent: setts.vat_percent || '10.00',
           expiry_date: futureDate(365),
           qty: remainingQty
         };
@@ -156,7 +177,7 @@ export default function MainStorePurchase() {
       setLineItems(populatedLines);
       setMessage({
         type: 'success',
-        text: `Automated PO Import: Loaded ${populatedLines.length} item lines specified in Purchase Order ${quotation.quotation_no}!`
+        text: `Automated PO Import: Loaded ${populatedLines.length} line item(s) & PO Date (${quotation.quotation_date}) from Purchase Order ${quotation.quotation_no}!`
       });
     }
   };
@@ -165,7 +186,7 @@ export default function MainStorePurchase() {
     const updated = [...lineItems];
     updated[index][field] = value;
     if (field === 'item_id') {
-      const selectedItem = items.find(i => i.id == value);
+      const selectedItem = items.find(i => i.id == value || i.raw_id == value);
       if (selectedItem) {
         updated[index].batch_code = `BTC-${selectedItem.item_code}-${rand4()}`;
       }

@@ -46,8 +46,15 @@ class QuotationController extends Controller
     public function getOpenByVendor()
     {
         $this->requireAuth();
-        $rawVendorId = UrlSecurity::decrypt($_GET['vendor_id'] ?? null);
-        $vendorId = !empty($rawVendorId) ? (int)$rawVendorId : (int)($_GET['vendor_id'] ?? 0);
+        $inputVendorId = $_GET['vendor_id'] ?? null;
+        $vendorId = 0;
+
+        if (is_numeric($inputVendorId)) {
+            $vendorId = (int)$inputVendorId;
+        } elseif (!empty($inputVendorId)) {
+            $decrypted = UrlSecurity::decrypt($inputVendorId);
+            $vendorId = !empty($decrypted) ? (int)$decrypted : 0;
+        }
 
         if (!$vendorId) {
             $this->json(['success' => true, 'quotations' => []]);
