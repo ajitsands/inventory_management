@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, FileCheck, Sparkles } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Sparkles } from 'lucide-react';
 
 export default function MainStorePurchase() {
   const [vendors, setVendors] = useState([]);
@@ -19,7 +19,7 @@ export default function MainStorePurchase() {
 
   // Form State
   const [vendorId, setVendorId] = useState('');
-  const [poNo, setPoNo] = useState(`PO-${dateString()}-${rand4()}`);
+  const [poNo, setPoNo] = useState('');
   const [poDate, setPoDate] = useState(todayDate());
   const [vendorInvoiceNo, setVendorInvoiceNo] = useState(`VINV-${rand4()}`);
   const [vendorInvoiceDate, setVendorInvoiceDate] = useState(todayDate());
@@ -51,7 +51,7 @@ export default function MainStorePurchase() {
       selling_price: '',
       mrp: '',
       vat_percent: defaultVat,
-      expiry_date: '',
+      expiry_date: futureDate(365),
       qty: 10
     };
   }
@@ -90,7 +90,16 @@ export default function MainStorePurchase() {
     }
     try {
       const res = await apiFetch(`/quotations/open-by-vendor?vendor_id=${vId}`);
-      setOpenQuotations(res.quotations || []);
+      const quots = res.quotations || [];
+      setOpenQuotations(quots);
+
+      // Auto-select first open PO if available
+      if (quots.length > 0) {
+        handleQuotationSelect(quots[0].id, quots);
+      } else {
+        setPoNo(`PO-${dateString()}-${rand4()}`);
+        setSelectedQuotationId('');
+      }
     } catch (err) {
       console.error(err);
     }
@@ -100,43 +109,54 @@ export default function MainStorePurchase() {
     loadData();
   }, []);
 
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
+
   const handleVendorChange = (vId) => {
     setVendorId(vId);
     setSelectedQuotationId('');
     fetchOpenQuotations(vId);
   };
 
-  // Populate items automatically from selected Quotation / PO
-  const handleQuotationImport = (qId) => {
+  // Select PO Number and auto-populate all line items belonging to that PO
+  const handleQuotationSelect = (qId, sourceQuotations = openQuotations) => {
     setSelectedQuotationId(qId);
-    if (!qId) return;
+    if (!qId) {
+      setPoNo(`PO-${dateString()}-${rand4()}`);
+      setLineItems([createEmptyLine(settings.vat_percent || '10.00')]);
+      return;
+    }
 
-    const quotation = openQuotations.find(q => (q.id === qId || q.raw_id == qId));
-    if (!quotation || !quotation.items || quotation.items.length === 0) return;
+    const quotation = sourceQuotations.find(q => (q.id === qId || q.raw_id == qId || q.quotation_no === qId));
+    if (!quotation) return;
 
     setPoNo(quotation.quotation_no);
-    const populatedLines = quotation.items.map(item => {
-      const remainingQty = Math.max(1, item.ordered_qty - item.received_qty);
-      const purchasePrice = parseFloat(item.unit_price || 0);
-      const sellingPrice = (purchasePrice * 1.25).toFixed(3);
-      return {
-        item_id: item.item_id,
-        batch_code: `BTC-${dateString()}-${rand4()}`,
-        purchase_price: purchasePrice.toString(),
-        selling_price: sellingPrice.toString(),
-        mrp: sellingPrice.toString(),
-        vat_percent: settings.vat_percent || '10.00',
-        expiry_date: futureDate(365),
-        qty: remainingQty
-      };
-    });
+    setPoDate(quotation.quotation_date || todayDate());
 
-    setLineItems(populatedLines);
-    setMessage({ type: 'success', text: `Automated Import: Loaded ${populatedLines.length} item lines from Quotation ${quotation.quotation_no}!` });
+    if (quotation.items && quotation.items.length > 0) {
+      const populatedLines = quotation.items.map(item => {
+        const remainingQty = Math.max(1, item.ordered_qty - item.received_qty);
+        const purchasePrice = parseFloat(item.unit_price || 0);
+        const sellingPrice = (purchasePrice * 1.25).toFixed(3);
+        return {
+          item_id: item.item_id,
+          batch_code: `BTC-${dateString()}-${rand4()}`,
+          purchase_price: purchasePrice.toString(),
+          selling_price: sellingPrice.toString(),
+          mrp: sellingPrice.toString(),
+          vat_percent: settings.vat_percent || '10.00',
+          expiry_date: futureDate(365),
+          qty: remainingQty
+        };
+      });
+
+      setLineItems(populatedLines);
+      setMessage({
+        type: 'success',
+        text: `Automated PO Import: Loaded ${populatedLines.length} item lines specified in Purchase Order ${quotation.quotation_no}!`
+      });
+    }
   };
-
-  const currencyCode = settings.currency_code || 'BHD';
-  const decimalPlaces = settings.decimal_places;
 
   const handleLineChange = (index, field, value) => {
     const updated = [...lineItems];
@@ -282,6 +302,16 @@ export default function MainStorePurchase() {
     }
   ];
 
+  // Options for PO Number Dropdown: active open POs + custom entry option
+  const poDropdownOptions = [
+    ...openQuotations.map(q => ({
+      value: q.id,
+      label: q.quotation_no,
+      sublabel: `Open PO • ${q.items.length} items • ${formatCurrency(q.total_amount, currencyCode, decimalPlaces)}`
+    })),
+    ...(openQuotations.length === 0 ? [{ value: 'CUSTOM', label: poNo || 'Manual PO Entry', sublabel: 'No active POs for vendor' }] : [])
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -291,7 +321,7 @@ export default function MainStorePurchase() {
             <ShoppingCart className="w-5 h-5 text-brand-blue" />
             Main Store Vendor Purchase Invoice Entry
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Receive stock from vendors manually or auto-populate specified items from Vendor Quotations in {currencyCode}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Select vendor, pick active PO number to auto-populate items, and post vendor invoice in {currencyCode}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
@@ -317,25 +347,10 @@ export default function MainStorePurchase() {
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2 flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Purchase Bill Header Information</h3>
-
-          {/* Quotation Auto-Populate Dropdown */}
           {openQuotations.length > 0 && (
-            <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-500/30 px-3 py-1.5 rounded-xl">
-              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-              <span className="text-xs font-bold text-purple-900 dark:text-purple-200">Import Open PO Items:</span>
-              <select
-                value={selectedQuotationId}
-                onChange={(e) => handleQuotationImport(e.target.value)}
-                className="bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-600 rounded-lg px-2 py-1 text-xs font-bold text-purple-700 dark:text-purple-300 focus:outline-none"
-              >
-                <option value="">-- Select Open Quotation / PO --</option>
-                {openQuotations.map(q => (
-                  <option key={q.id} value={q.id}>
-                    {q.quotation_no} ({q.items.length} items, {formatCurrency(q.total_amount, currencyCode, decimalPlaces)})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <span className="text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/80 px-3 py-1 rounded-full border border-purple-200 dark:border-purple-500/40 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5" /> {openQuotations.length} Active PO(s) Found for Vendor
+            </span>
           )}
         </div>
 
@@ -351,14 +366,27 @@ export default function MainStorePurchase() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Purchase Order (PO) Number *</label>
-            <input
-              type="text"
-              required
-              value={poNo}
-              onChange={(e) => setPoNo(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-brand-blue"
-            />
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+              <span>Purchase Order (PO) Number *</span>
+              {openQuotations.length > 0 && <span className="text-[10px] text-purple-600 font-bold">Auto-Populates PO Items</span>}
+            </label>
+            {openQuotations.length > 0 ? (
+              <SearchableSelect
+                placeholder="Select Active Vendor PO..."
+                options={poDropdownOptions}
+                value={selectedQuotationId || poNo}
+                onChange={(val) => handleQuotationSelect(val)}
+              />
+            ) : (
+              <input
+                type="text"
+                required
+                value={poNo}
+                onChange={(e) => setPoNo(e.target.value)}
+                placeholder="e.g. SA-QTN/2026/0001"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-brand-blue"
+              />
+            )}
           </div>
 
           <div>
@@ -368,7 +396,7 @@ export default function MainStorePurchase() {
               required
               value={poDate}
               onChange={(e) => setPoDate(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue font-semibold"
             />
           </div>
 
@@ -390,7 +418,7 @@ export default function MainStorePurchase() {
               required
               value={vendorInvoiceDate}
               onChange={(e) => setVendorInvoiceDate(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue font-semibold"
             />
           </div>
 
@@ -462,7 +490,7 @@ export default function MainStorePurchase() {
                           required
                           value={line.batch_code}
                           onChange={(e) => handleLineChange(index, 'batch_code', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:border-brand-blue font-bold"
                         />
                       </td>
 
@@ -527,7 +555,7 @@ export default function MainStorePurchase() {
                         />
                       </td>
 
-                      <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100">
+                      <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100 font-mono">
                         {formatCurrency(lineSubtotal, currencyCode, decimalPlaces)}
                       </td>
 
