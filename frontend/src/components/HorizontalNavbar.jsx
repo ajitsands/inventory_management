@@ -32,12 +32,11 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
   }, []);
 
   const isMastersActive = activeTab === 'items' || activeTab === 'master-data';
-
   const canSeeMasters = ['ADMIN', 'STORE_MANAGER'].includes(role);
 
   return (
-    <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-16 z-30 shadow-xs transition-colors duration-200">
-      <div className="w-full px-6 flex items-center space-x-1 overflow-x-auto py-2 scrollbar-none">
+    <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-16 z-40 shadow-xs transition-colors duration-200 overflow-visible">
+      <div className="w-full px-6 flex items-center space-x-1 py-2 overflow-visible relative">
         
         {/* 1. Dashboard */}
         <button
@@ -70,12 +69,13 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
             </button>
 
             {mastersOpen && (
-              <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute left-0 top-full mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl py-2 z-50">
                 <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800/80 mb-1">
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">System Master Catalogs</span>
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => { setActiveTab('items'); setMastersOpen(false); }}
                   className={`w-full flex items-center space-x-3 px-4 py-2.5 text-xs text-left font-medium transition-all ${
                     activeTab === 'items'
@@ -93,6 +93,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => { setActiveTab('master-data'); setMastersOpen(false); }}
                   className={`w-full flex items-center space-x-3 px-4 py-2.5 text-xs text-left font-medium transition-all ${
                     activeTab === 'master-data'
