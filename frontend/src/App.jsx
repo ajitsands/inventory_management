@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+import HorizontalNavbar from './components/HorizontalNavbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MainStorePurchase from './pages/MainStorePurchase';
@@ -25,20 +25,20 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
       <Header />
-      <div className="flex flex-1">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-        <main className="flex-1 p-6 overflow-y-auto max-w-7xl mx-auto w-full">
-          {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} />}
-          {activeTab === 'purchase' && <MainStorePurchase />}
-          {activeTab === 'branch-transfer' && <SubBranchInvoicing />}
-          {activeTab === 'clinic-transfer' && <ClinicStockTransfer />}
-          {activeTab === 'opd-sales' && <ClinicSalesPOS />}
-          {activeTab === 'batches' && <BatchInventory />}
-          {activeTab === 'audit-trail' && <AuditTrailPage />}
-          {activeTab === 'reports' && <ReportsPage />}
-          {activeTab === 'user-mgmt' && <UserManagement />}
-        </main>
-      </div>
+      <HorizontalNavbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      
+      {/* Full Width Main Page Content Container */}
+      <main className="flex-1 w-full px-6 py-6 overflow-y-auto">
+        {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} />}
+        {activeTab === 'purchase' && <MainStorePurchase />}
+        {activeTab === 'branch-transfer' && <SubBranchInvoicing />}
+        {activeTab === 'clinic-transfer' && <ClinicStockTransfer />}
+        {activeTab === 'opd-sales' && <ClinicSalesPOS />}
+        {activeTab === 'batches' && <BatchInventory />}
+        {activeTab === 'audit-trail' && <AuditTrailPage />}
+        {activeTab === 'reports' && <ReportsPage />}
+        {activeTab === 'user-mgmt' && <UserManagement />}
+      </main>
     </div>
   );
 }
