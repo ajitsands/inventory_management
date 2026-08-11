@@ -243,17 +243,17 @@ export default function ClinicStockTransfer() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3.5 w-72">Search & Select Sub-Branch Batch *</th>
-                  <th className="p-3.5">Batch Code</th>
-                  <th className="p-3.5">Sub-Branch Stock Avail</th>
-                  <th className="p-3.5 w-32">Transfer Qty (Press Enter for New Row) *</th>
+                  <th className="p-3.5 min-w-[420px]">Search & Select Sub-Branch Batch *</th>
+                  <th className="p-3.5 w-36">Batch Code</th>
+                  <th className="p-3.5 w-36">Sub-Branch Stock Avail</th>
+                  <th className="p-3.5 w-36">Transfer Qty (Press Enter for New Row) *</th>
                   <th className="p-3.5 w-12 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                 {lineItems.map((line, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
-                    <td className="p-2.5">
+                    <td className="p-2.5 min-w-[420px]">
                       <SearchableSelect
                         placeholder="Search batch or item..."
                         options={subBatches.map(b => ({
@@ -266,7 +266,11 @@ export default function ClinicStockTransfer() {
                       />
                     </td>
 
-                    <td className="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-300">{line.batch_code || '-'}</td>
+                    <td className="p-2.5 w-36">
+                      <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
+                        {line.batch_code || '-'}
+                      </span>
+                    </td>
                     <td className="p-3.5 font-bold text-slate-900 dark:text-slate-200">{line.available || 0} units</td>
 
                     <td className="p-2.5">

@@ -272,7 +272,7 @@ export default function SubBranchInvoicing() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3.5 w-96">Available Main Store Stock Batch *</th>
+                  <th className="p-3.5 min-w-[420px]">Available Main Store Stock Batch *</th>
                   <th className="p-3.5 w-32">Unit Cost ({currencyCode})</th>
                   <th className="p-3.5 w-28">Available Stock</th>
                   <th className="p-3.5 w-28">Transfer Qty (Press Enter for New Row) *</th>
@@ -285,7 +285,7 @@ export default function SubBranchInvoicing() {
                   const lineTotal = (parseFloat(line.unit_price || 0) * parseInt(line.qty || 0));
                   return (
                     <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
-                      <td className="p-2.5">
+                      <td className="p-2.5 min-w-[420px]">
                         <SearchableSelect
                           placeholder="Search Stock Batch..."
                           options={availableStock.map(b => ({
