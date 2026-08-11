@@ -99,17 +99,26 @@ class Model {
     }
 
     public static function beginTransaction() {
-        return self::getDB()->beginTransaction();
+        $db = self::getDB();
+        if (!$db->inTransaction()) {
+            return $db->beginTransaction();
+        }
+        return true;
     }
 
     public static function commit() {
-        return self::getDB()->commit();
+        $db = self::getDB();
+        if ($db->inTransaction()) {
+            return $db->commit();
+        }
+        return true;
     }
 
     public static function rollBack() {
-        if (self::getDB()->inTransaction()) {
-            return self::getDB()->rollBack();
+        $db = self::getDB();
+        if ($db->inTransaction()) {
+            return $db->rollBack();
         }
-        return false;
+        return true;
     }
 }

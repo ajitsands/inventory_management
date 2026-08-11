@@ -30,7 +30,11 @@ class SequenceService
     public static function generateNextNumber($key)
     {
         $pdo = Model::getDB();
-        $pdo->beginTransaction();
+        $inTx = $pdo->inTransaction();
+
+        if (!$inTx) {
+            $pdo->beginTransaction();
+        }
 
         try {
             $stmt = $pdo->prepare("SELECT * FROM system_sequences WHERE sequence_key = ? FOR UPDATE");
@@ -38,8 +42,9 @@ class SequenceService
             $seq = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$seq) {
-                // Fallback default
-                $pdo->rollBack();
+                if (!$inTx && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 return strtoupper(substr($key, 0, 3)) . '-' . sprintf('%04d', rand(1, 9999));
             }
 
@@ -47,7 +52,9 @@ class SequenceService
             $updateStmt = $pdo->prepare("UPDATE system_sequences SET current_val = ? WHERE sequence_key = ?");
             $updateStmt->execute([$newVal, $key]);
 
-            $pdo->commit();
+            if (!$inTx && $pdo->inTransaction()) {
+                $pdo->commit();
+            }
 
             // Format Code / Number
             $year = date('Y');
@@ -60,7 +67,9 @@ class SequenceService
 
             return $formatted;
         } catch (\Exception $e) {
-            $pdo->rollBack();
+            if (!$inTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
     }
