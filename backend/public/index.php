@@ -17,6 +17,12 @@ $router->post('/api/v1/users', ['AuthController', 'createUser']);
 $router->get('/api/v1/master-data', ['BatchController', 'getMasterData']);
 $router->get('/api/v1/stock/location', ['BatchController', 'getStockByLocation']);
 
+// Item Master Routes
+$router->get('/api/v1/items', ['ItemController', 'index']);
+$router->post('/api/v1/items', ['ItemController', 'store']);
+$router->post('/api/v1/items/import-excel', ['ItemController', 'importExcel']);
+$router->post('/api/v1/items/update', ['ItemController', 'update']);
+
 // Master Entity CRUD Routes (Vendors, Locations, Customers)
 $router->get('/api/v1/vendors', ['VendorController', 'index']);
 $router->post('/api/v1/vendors', ['VendorController', 'store']);
@@ -40,6 +46,12 @@ $router->post('/api/v1/customers/delete', ['CustomerController', 'destroy']);
 $router->get('/api/v1/settings', ['SettingsController', 'index']);
 $router->post('/api/v1/settings', ['SettingsController', 'updateSettings']);
 $router->post('/api/v1/settings/sequences', ['SettingsController', 'updateSequences']);
+
+// Vendor Quotations & PO Routes
+$router->get('/api/v1/quotations', ['QuotationController', 'index']);
+$router->get('/api/v1/quotations/open-by-vendor', ['QuotationController', 'getOpenByVendor']);
+$router->post('/api/v1/quotations', ['QuotationController', 'store']);
+$router->post('/api/v1/quotations/force-close', ['QuotationController', 'forceClose']);
 
 // Movement Routes
 $router->post('/api/v1/purchase/create', ['PurchaseController', 'createPurchaseInvoice']);

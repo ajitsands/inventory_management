@@ -3,11 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Building2,
+  Boxes,
+  FileText,
   ShoppingCart,
   GitPullRequest,
   Building,
   Stethoscope,
-  Boxes,
   FileSpreadsheet
 } from 'lucide-react';
 
@@ -17,6 +18,8 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'] },
+    { id: 'items', label: 'Item Master & Excel', icon: Boxes, roles: ['ADMIN', 'STORE_MANAGER'] },
+    { id: 'quotations', label: 'Vendor Quotations / POs', icon: FileText, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'master-data', label: 'Master Entities', icon: Building2, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'purchase', label: 'Vendor Purchase (Main Store)', icon: ShoppingCart, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'branch-transfer', label: 'Sub-Branch Invoicing', icon: GitPullRequest, roles: ['ADMIN', 'STORE_MANAGER'] },

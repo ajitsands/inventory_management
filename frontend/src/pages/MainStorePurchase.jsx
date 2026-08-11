@@ -4,12 +4,14 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, FileCheck, Sparkles } from 'lucide-react';
 
 export default function MainStorePurchase() {
   const [vendors, setVendors] = useState([]);
   const [items, setItems] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [openQuotations, setOpenQuotations] = useState([]);
+  const [selectedQuotationId, setSelectedQuotationId] = useState('');
   const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +30,11 @@ export default function MainStorePurchase() {
 
   function todayDate() {
     return new Date().toISOString().split('T')[0];
+  }
+  function futureDate(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
   }
   function dateString() {
     return new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -64,7 +71,9 @@ export default function MainStorePurchase() {
       setSettings(setts);
 
       if (masterData.vendors && masterData.vendors.length > 0) {
-        setVendorId(masterData.vendors[0].id);
+        const firstVendorId = masterData.vendors[0].id;
+        setVendorId(firstVendorId);
+        fetchOpenQuotations(firstVendorId);
       }
       setLineItems([createEmptyLine(setts.vat_percent || '10.00')]);
     } catch (err) {
@@ -74,9 +83,57 @@ export default function MainStorePurchase() {
     }
   };
 
+  const fetchOpenQuotations = async (vId) => {
+    if (!vId) {
+      setOpenQuotations([]);
+      return;
+    }
+    try {
+      const res = await apiFetch(`/quotations/open-by-vendor?vendor_id=${vId}`);
+      setOpenQuotations(res.quotations || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleVendorChange = (vId) => {
+    setVendorId(vId);
+    setSelectedQuotationId('');
+    fetchOpenQuotations(vId);
+  };
+
+  // Populate items automatically from selected Quotation / PO
+  const handleQuotationImport = (qId) => {
+    setSelectedQuotationId(qId);
+    if (!qId) return;
+
+    const quotation = openQuotations.find(q => (q.id === qId || q.raw_id == qId));
+    if (!quotation || !quotation.items || quotation.items.length === 0) return;
+
+    setPoNo(quotation.quotation_no);
+    const populatedLines = quotation.items.map(item => {
+      const remainingQty = Math.max(1, item.ordered_qty - item.received_qty);
+      const purchasePrice = parseFloat(item.unit_price || 0);
+      const sellingPrice = (purchasePrice * 1.25).toFixed(3);
+      return {
+        item_id: item.item_id,
+        batch_code: `BTC-${dateString()}-${rand4()}`,
+        purchase_price: purchasePrice.toString(),
+        selling_price: sellingPrice.toString(),
+        mrp: sellingPrice.toString(),
+        vat_percent: settings.vat_percent || '10.00',
+        expiry_date: futureDate(365),
+        qty: remainingQty
+      };
+    });
+
+    setLineItems(populatedLines);
+    setMessage({ type: 'success', text: `Automated Import: Loaded ${populatedLines.length} item lines from Quotation ${quotation.quotation_no}!` });
+  };
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
@@ -148,6 +205,7 @@ export default function MainStorePurchase() {
     try {
       const payload = {
         vendor_id: vendorId,
+        quotation_id: selectedQuotationId || null,
         po_no: poNo,
         po_date: poDate,
         vendor_invoice_no: vendorInvoiceNo,
@@ -170,6 +228,7 @@ export default function MainStorePurchase() {
         setPoNo(`PO-${dateString()}-${rand4()}`);
         setVendorInvoiceNo(`VINV-${rand4()}`);
         setBillDiscount('0.00');
+        setSelectedQuotationId('');
         setLineItems([createEmptyLine(settings.vat_percent || '10.00')]);
         loadData();
       }
@@ -232,7 +291,7 @@ export default function MainStorePurchase() {
             <ShoppingCart className="w-5 h-5 text-brand-blue" />
             Main Store Vendor Purchase Invoice Entry
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Receive stock from vendors, generate batch codes, and record price & VAT controls in {currencyCode}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Receive stock from vendors manually or auto-populate specified items from Vendor Quotations in {currencyCode}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
@@ -256,8 +315,28 @@ export default function MainStorePurchase() {
 
       {/* Form Section */}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
-        <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
+        <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2 flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Purchase Bill Header Information</h3>
+
+          {/* Quotation Auto-Populate Dropdown */}
+          {openQuotations.length > 0 && (
+            <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-500/30 px-3 py-1.5 rounded-xl">
+              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+              <span className="text-xs font-bold text-purple-900 dark:text-purple-200">Import Open PO Items:</span>
+              <select
+                value={selectedQuotationId}
+                onChange={(e) => handleQuotationImport(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-600 rounded-lg px-2 py-1 text-xs font-bold text-purple-700 dark:text-purple-300 focus:outline-none"
+              >
+                <option value="">-- Select Open Quotation / PO --</option>
+                {openQuotations.map(q => (
+                  <option key={q.id} value={q.id}>
+                    {q.quotation_no} ({q.items.length} items, {formatCurrency(q.total_amount, currencyCode, decimalPlaces)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -267,7 +346,7 @@ export default function MainStorePurchase() {
               placeholder="Search Vendor..."
               options={vendors.map(v => ({ value: v.id, label: v.name, sublabel: `Code: ${v.code}` }))}
               value={vendorId}
-              onChange={(val) => setVendorId(val)}
+              onChange={(val) => handleVendorChange(val)}
             />
           </div>
 

@@ -23,6 +23,7 @@ class PurchaseController extends Controller
         try {
             $invoiceNo = SequenceService::generateNextNumber('purchase_invoice');
             $locationId = $body['location_id'] ?? 1; // Default to Central Main Store
+            $quotationId = !empty($body['quotation_id']) ? (int)$body['quotation_id'] : null;
 
             // Calculate total amount
             $totalAmount = 0.00;
@@ -56,6 +57,9 @@ class PurchaseController extends Controller
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $today = date('Y-m-d');
+
+            // Statement for updating quotation received qty if linked
+            $stmtUpdateQuotationItem = $pdo->prepare("UPDATE `vendor_quotation_items` SET `received_qty` = `received_qty` + ? WHERE `quotation_id` = ? AND `item_id` = ?");
 
             foreach ($body['items'] as $line) {
                 $itemId = (int)$line['item_id'];
@@ -93,6 +97,11 @@ class PurchaseController extends Controller
                     $subtotal
                 ]);
 
+                // Update linked Quotation received qty if applicable
+                if ($quotationId) {
+                    $stmtUpdateQuotationItem->execute([$qty, $quotationId, $itemId]);
+                }
+
                 // Credit stock to Main Branch
                 InventoryLedgerService::creditStock($locationId, $batchId, $qty);
 
@@ -100,11 +109,28 @@ class PurchaseController extends Controller
                 InventoryLedgerService::recordMovement('PURCHASE', $invoiceNo, $itemId, $batchId, null, $locationId, $qty, $purchasePrice, $sellingPrice, $user['user_id']);
             }
 
+            // Check if linked Quotation should be marked PARTIALLY_RECEIVED or CLOSED
+            if ($quotationId) {
+                $stmtCheck = $pdo->prepare("SELECT COUNT(*) AS total_items, 
+                                                   SUM(CASE WHEN received_qty >= ordered_qty THEN 1 ELSE 0 END) AS completed_items,
+                                                   SUM(received_qty) AS total_received
+                                            FROM `vendor_quotation_items` WHERE `quotation_id` = ?");
+                $stmtCheck->execute([$quotationId]);
+                $checkRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+                if ($checkRow['completed_items'] >= $checkRow['total_items']) {
+                    $pdo->prepare("UPDATE `vendor_quotations` SET `status` = 'CLOSED', `closure_reason` = 'All items completely received' WHERE `id` = ?")->execute([$quotationId]);
+                } elseif ($checkRow['total_received'] > 0) {
+                    $pdo->prepare("UPDATE `vendor_quotations` SET `status` = 'PARTIALLY_RECEIVED' WHERE `id` = ?")->execute([$quotationId]);
+                }
+            }
+
             Model::commit();
 
             AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'PURCHASE', 'CREATE_PURCHASE_INVOICE', null, [
                 'purchase_invoice_id' => $purchaseInvoiceId,
                 'invoice_no'          => $invoiceNo,
+                'quotation_id'        => $quotationId,
                 'total_amount'        => $totalAmount,
                 'items_count'         => count($body['items'])
             ], $locationId);

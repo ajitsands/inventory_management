@@ -5,6 +5,8 @@ import Header from './components/Header';
 import HorizontalNavbar from './components/HorizontalNavbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ItemManagement from './pages/ItemManagement';
+import VendorQuotations from './pages/VendorQuotations';
 import MasterManagement from './pages/MasterManagement';
 import StoreSettings from './pages/StoreSettings';
 import MainStorePurchase from './pages/MainStorePurchase';
@@ -32,6 +34,8 @@ function MainApp() {
       {/* Full Width Main Page Content Container */}
       <main className="flex-1 w-full px-6 py-6 overflow-y-auto">
         {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} />}
+        {activeTab === 'items' && <ItemManagement />}
+        {activeTab === 'quotations' && <VendorQuotations />}
         {activeTab === 'master-data' && <MasterManagement />}
         {activeTab === 'store-settings' && <StoreSettings />}
         {activeTab === 'purchase' && <MainStorePurchase />}
