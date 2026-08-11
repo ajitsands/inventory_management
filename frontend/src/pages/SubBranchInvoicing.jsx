@@ -2,37 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
-import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Receipt } from 'lucide-react';
+import { formatDate } from '../utils/date';
+import { formatCurrency } from '../utils/currency';
+import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 
 export default function SubBranchInvoicing() {
   const [subBranches, setSubBranches] = useState([]);
-  const [mainBatches, setMainBatches] = useState([]);
+  const [availableStock, setAvailableStock] = useState([]);
   const [transfers, setTransfers] = useState([]);
-  const [toLocationId, setToLocationId] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [lineItems, setLineItems] = useState([createEmptyLine()]);
+  const [settings, setSettings] = useState({ currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
+  // Form State
+  const [toLocationId, setToLocationId] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [lineItems, setLineItems] = useState([createEmptyLine()]);
+
   function createEmptyLine() {
-    return { batch_id: '', item_id: '', qty: 1, unit_price: 0, available: 0, batch_code: '' };
+    return {
+      item_id: '',
+      batch_id: '',
+      unit_price: '0.00',
+      max_qty: 0,
+      qty: 1
+    };
   }
 
   const loadData = async () => {
     try {
-      const [masterData, batchData, transferData] = await Promise.all([
-        apiFetch('/master-data'),
-        apiFetch('/stock/location?location_id=1'), // Main Store
-        apiFetch('/transfer/list')
+      const [locationsRes, stockRes, transferRes, settingsRes] = await Promise.all([
+        apiFetch('/locations'),
+        apiFetch('/stock/location?location_id=1'), // Main Branch stock
+        apiFetch('/transfer/list'),
+        apiFetch('/settings')
       ]);
+      const branches = (locationsRes.locations || []).filter(l => l.type === 'SUB_BRANCH');
+      setSubBranches(branches);
+      setAvailableStock(stockRes.batches || []);
+      setTransfers(transferRes.transfers || []);
+      if (settingsRes.settings) {
+        setSettings(settingsRes.settings);
+      }
 
-      const subs = (masterData.locations || []).filter(l => l.type === 'SUB_BRANCH');
-      setSubBranches(subs);
-      if (subs.length > 0) setToLocationId(subs[0].id);
-
-      setMainBatches(batchData.batches || []);
-      setTransfers((transferData.transfers || []).filter(t => t.transfer_type === 'BRANCH_INVOICED'));
+      if (branches.length > 0) {
+        setToLocationId(branches[0].id);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -44,27 +60,21 @@ export default function SubBranchInvoicing() {
     loadData();
   }, []);
 
-  const handleBatchSelect = (index, batchId) => {
-    const selected = mainBatches.find(b => b.batch_id == batchId);
-    const updated = [...lineItems];
-    if (selected) {
-      updated[index] = {
-        batch_id: selected.batch_id,
-        item_id: selected.item_id,
-        batch_code: selected.batch_code,
-        unit_price: selected.selling_price,
-        available: selected.quantity_available,
-        qty: 1
-      };
-    } else {
-      updated[index] = createEmptyLine();
-    }
-    setLineItems(updated);
-  };
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
 
-  const handleQtyChange = (index, qty) => {
+  const handleLineChange = (index, field, value) => {
     const updated = [...lineItems];
-    updated[index].qty = parseInt(qty || 1);
+    updated[index][field] = value;
+
+    if (field === 'batch_id') {
+      const selectedBatch = availableStock.find(b => b.batch_id == value || b.id == value);
+      if (selectedBatch) {
+        updated[index].item_id = selectedBatch.item_id;
+        updated[index].unit_price = selectedBatch.purchase_price || selectedBatch.selling_price;
+        updated[index].max_qty = selectedBatch.quantity_available;
+      }
+    }
     setLineItems(updated);
   };
 
@@ -75,25 +85,25 @@ export default function SubBranchInvoicing() {
     }
   };
 
-  const calculateTotal = () => lineItems.reduce((acc, l) => acc + (parseFloat(l.unit_price || 0) * parseInt(l.qty || 0)), 0);
+  const calculateTotal = () => lineItems.reduce((acc, line) => acc + (parseFloat(line.unit_price || 0) * parseInt(line.qty || 0)), 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
 
     if (!toLocationId) {
-      setMessage({ type: 'error', text: 'Select a destination Sub Branch.' });
+      setMessage({ type: 'error', text: 'Please select a destination Sub-Branch.' });
       return;
     }
 
     for (let i = 0; i < lineItems.length; i++) {
-      const l = lineItems[i];
-      if (!l.batch_id || !l.qty || l.qty <= 0) {
-        setMessage({ type: 'error', text: `Please select a batch and valid quantity for line item #${i + 1}.` });
+      const line = lineItems[i];
+      if (!line.batch_id || !line.qty) {
+        setMessage({ type: 'error', text: `Please select a batch and quantity for line item #${i + 1}.` });
         return;
       }
-      if (l.qty > l.available) {
-        setMessage({ type: 'error', text: `Line #${i + 1}: Qty (${l.qty}) exceeds available stock (${l.available}) in Main Store!` });
+      if (line.qty > line.max_qty) {
+        setMessage({ type: 'error', text: `Line #${i + 1} quantity (${line.qty}) exceeds available stock (${line.max_qty}).` });
         return;
       }
     }
@@ -101,7 +111,7 @@ export default function SubBranchInvoicing() {
     setSubmitting(true);
     try {
       const payload = {
-        from_location_id: 1, // Main Branch
+        from_location_id: 1, // Central Main Store
         to_location_id: toLocationId,
         remarks: remarks,
         items: lineItems
@@ -113,13 +123,13 @@ export default function SubBranchInvoicing() {
       });
 
       if (res.success) {
-        setMessage({ type: 'success', text: `Invoiced Stock Transfer ${res.transfer_no} (Invoice #${res.invoice_no}) issued to Sub Branch successfully!` });
+        setMessage({ type: 'success', text: `Branch Invoice ${res.invoice_no} (${res.transfer_no}) generated successfully!` });
         setLineItems([createEmptyLine()]);
         setRemarks('');
         loadData();
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.message || 'Transfer failed' });
+      setMessage({ type: 'error', text: err.message || 'Branch transfer failed' });
     } finally {
       setSubmitting(false);
     }
@@ -127,59 +137,49 @@ export default function SubBranchInvoicing() {
 
   const historyColumns = [
     {
-      header: 'Transfer Ref #',
-      accessor: 'transfer_no',
-      render: (t) => <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">{t.transfer_no}</span>
-    },
-    {
-      header: 'Internal Invoice #',
+      header: 'Branch Transfer Invoice #',
       accessor: 'invoice_no',
-      render: (t) => <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{t.invoice_no || 'N/A'}</span>
+      render: (t) => <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">{t.invoice_no || t.transfer_no}</span>
     },
     {
-      header: 'From Location',
+      header: 'Source ➔ Destination',
       accessor: 'from_location_name',
-      render: (t) => <span className="text-slate-700 dark:text-slate-300 font-medium">{t.from_location_name}</span>
-    },
-    {
-      header: 'To Sub-Branch',
-      accessor: 'to_location_name',
-      render: (t) => <span className="font-bold text-slate-900 dark:text-slate-100">{t.to_location_name}</span>
-    },
-    {
-      header: 'Total Invoice Val',
-      accessor: 'total_val',
-      render: (t) => <span className="font-bold text-emerald-600 dark:text-emerald-400">${parseFloat(t.total_val || 0).toFixed(2)}</span>
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
       render: (t) => (
-        <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 text-[10px] font-bold">
-          {t.status}
+        <span className="text-slate-800 dark:text-slate-200 text-xs font-semibold">
+          {t.from_location_name} ➔ <strong className="text-brand-blue">{t.to_location_name}</strong>
         </span>
       )
     },
     {
-      header: 'Dispatched At',
+      header: `Invoiced Value (${currencyCode})`,
+      accessor: 'total_val',
+      render: (t) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(t.total_val, currencyCode, decimalPlaces)}</span>
+    },
+    {
+      header: 'Dispatched By',
+      accessor: 'created_by_name',
+      render: (t) => <span className="text-slate-600 dark:text-slate-400">{t.created_by_name}</span>
+    },
+    {
+      header: 'Dispatched Date',
       accessor: 'dispatched_at',
-      render: (t) => <span className="text-slate-500 dark:text-slate-400 font-mono">{t.dispatched_at}</span>
+      render: (t) => <span className="text-slate-500 dark:text-slate-400 font-mono">{formatDate(t.dispatched_at)}</span>
     }
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Banner */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
           <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
             <GitPullRequest className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-            Main Branch ➔ Sub-Branch Invoiced Stock Transfer
+            Main Store ➔ Regional Sub-Branch Invoiced Stock Transfer
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Issue official internal invoices and dispatch inventory from Central Main Store to Regional Sub-Branches</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Dispatch stock batches from Central Warehouse to Regional Sub-Branches with internal transfer invoicing in {currencyCode}</p>
         </div>
-        <span className="px-3 py-1 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/30 text-xs font-bold flex items-center gap-1.5">
-          <Receipt className="w-3.5 h-3.5" /> Invoicing Required
+        <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 dark:bg-cyan-950 dark:text-cyan-300 text-xs font-bold">
+          Central Warehouse Dispatch
         </span>
       </div>
 
@@ -192,40 +192,45 @@ export default function SubBranchInvoicing() {
         </div>
       )}
 
-      {/* Form Card */}
+      {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Location</label>
-            <input
-              type="text"
-              disabled
-              value="Central Main Warehouse & Branch (Hub)"
-              className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-brand-blue font-bold"
-            />
-          </div>
+        <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
+          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Transfer Invoice Header Information</h3>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Sub-Branch (Select2 Search) *</label>
             <SearchableSelect
               placeholder="Search Sub-Branch..."
-              options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})`, sublabel: sb.type }))}
+              options={subBranches.map(b => ({ value: b.id, label: b.name, sublabel: `Code: ${b.code}` }))}
               value={toLocationId}
               onChange={(val) => setToLocationId(val)}
             />
           </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Transfer Remarks / Dispatch Note</label>
+            <input
+              type="text"
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="e.g. Weekly Regional Branch Replenishment"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+            />
+          </div>
         </div>
 
-        {/* Line Items Table with SearchableSelect */}
+        {/* Line Items Table */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Stock Transfer Items (Searchable Main Store Batches)</h3>
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Dispatch Stock Batches</h3>
             <button
               type="button"
               onClick={addLine}
-              className="px-3.5 py-1.5 rounded-xl bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/40 text-xs font-semibold hover:bg-cyan-200 dark:hover:bg-cyan-900/40 transition-all flex items-center gap-1"
+              className="px-3.5 py-1.5 rounded-xl bg-cyan-100 text-cyan-700 border border-cyan-300 dark:bg-cyan-950 dark:text-cyan-300 text-xs font-semibold hover:brightness-110 transition-all flex items-center gap-1"
             >
-              <Plus className="w-3.5 h-3.5" /> Add Batch Item
+              <Plus className="w-3.5 h-3.5" /> Add Batch Line
             </button>
           </div>
 
@@ -233,56 +238,62 @@ export default function SubBranchInvoicing() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3.5 w-72">Search & Select Main Store Batch *</th>
-                  <th className="p-3.5">Batch Code</th>
-                  <th className="p-3.5">Main Store Avail Qty</th>
-                  <th className="p-3.5 w-32">Unit Invoice Price ($)</th>
+                  <th className="p-3.5 w-96">Available Main Store Stock Batch (Select2 Search) *</th>
+                  <th className="p-3.5 w-32">Unit Cost ({currencyCode})</th>
+                  <th className="p-3.5 w-28">Available Stock</th>
                   <th className="p-3.5 w-28">Transfer Qty *</th>
-                  <th className="p-3.5 w-32 text-right">Subtotal ($)</th>
+                  <th className="p-3.5 w-36 text-right">Line Total ({currencyCode})</th>
                   <th className="p-3.5 w-12 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                {lineItems.map((line, idx) => {
-                  const lineSubtotal = (parseFloat(line.unit_price || 0) * parseInt(line.qty || 0)).toFixed(2);
+                {lineItems.map((line, index) => {
+                  const lineTotal = (parseFloat(line.unit_price || 0) * parseInt(line.qty || 0));
                   return (
-                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
+                    <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
                       <td className="p-2.5">
                         <SearchableSelect
-                          placeholder="Search batch or item..."
-                          options={mainBatches.map(b => ({
-                            value: b.batch_id,
-                            label: b.item_name,
-                            sublabel: `Batch: ${b.batch_code} (Exp: ${b.expiry_date}) [Avail: ${b.quantity_available}]`
+                          placeholder="Search Stock Batch..."
+                          options={availableStock.map(b => ({
+                            value: b.batch_id || b.id,
+                            label: `${b.item_name} (${b.batch_code})`,
+                            sublabel: `Avail: ${b.quantity_available} units • Expiry: ${b.expiry_date}`
                           }))}
                           value={line.batch_id}
-                          onChange={(val) => handleBatchSelect(idx, val)}
+                          onChange={(val) => handleLineChange(index, 'batch_id', val)}
                         />
                       </td>
 
-                      <td className="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-300">{line.batch_code || '-'}</td>
-                      <td className="p-3.5 font-bold text-slate-900 dark:text-slate-200">{line.available || 0} units</td>
-                      <td className="p-3.5 font-bold text-slate-900 dark:text-slate-200">${line.unit_price || '0.00'}</td>
+                      <td className="p-3.5 font-bold text-slate-700 dark:text-slate-300">
+                        {formatCurrency(line.unit_price, currencyCode, decimalPlaces)}
+                      </td>
+
+                      <td className="p-3.5 font-bold text-slate-600 dark:text-slate-400">
+                        {line.max_qty} units
+                      </td>
 
                       <td className="p-2.5">
                         <input
                           type="number"
                           min="1"
-                          max={line.available || 9999}
+                          max={line.max_qty}
                           required
                           value={line.qty}
-                          onChange={(e) => handleQtyChange(idx, e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
+                          onChange={(e) => handleLineChange(index, 'qty', e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
 
-                      <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100">${lineSubtotal}</td>
+                      <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100">
+                        {formatCurrency(lineTotal, currencyCode, decimalPlaces)}
+                      </td>
 
                       <td className="p-2.5 text-center">
                         <button
                           type="button"
-                          onClick={() => removeLine(idx)}
+                          onClick={() => removeLine(index)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                          title="Remove Line"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -295,33 +306,33 @@ export default function SubBranchInvoicing() {
           </div>
         </div>
 
+        {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
           <div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Total Internal Invoice Valuation:</p>
-            <p className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-heading">${calculateTotal().toFixed(2)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Total Invoiced Transfer Value:</p>
+            <p className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-heading">{formatCurrency(calculateTotal(), currencyCode, decimalPlaces)}</p>
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-700 text-white font-bold text-xs shadow-lg glow-blue hover:brightness-110 active:scale-[0.99] transition-all flex items-center gap-2"
+            className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold text-xs shadow-lg hover:brightness-110 active:scale-[0.99] transition-all flex items-center gap-2"
           >
             {submitting ? (
               <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Issue Branch Invoice & Transfer Stock
+                Dispatch Transfer & Issue Branch Invoice
               </>
             )}
           </button>
         </div>
       </form>
 
-      {/* Branch Transfer History DataTable */}
+      {/* History */}
       <DataTable
-        title="Branch Invoiced Stock Transfer History"
-        subtitle="Search and sort issued branch stock invoices and dispatches"
+        title="Sub-Branch Transfer Invoices History"
         columns={historyColumns}
         data={transfers}
         searchable={true}

@@ -3,13 +3,14 @@ import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Percent, Tag, Calculator } from 'lucide-react';
+import { formatCurrency } from '../utils/currency';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag } from 'lucide-react';
 
 export default function MainStorePurchase() {
   const [vendors, setVendors] = useState([]);
   const [items, setItems] = useState([]);
   const [purchases, setPurchases] = useState([]);
-  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE' });
+  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
@@ -59,7 +60,7 @@ export default function MainStorePurchase() {
       setItems(masterData.items || []);
       setPurchases(purchaseData.invoices || []);
       
-      const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE' };
+      const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
 
       if (masterData.vendors && masterData.vendors.length > 0) {
@@ -76,6 +77,9 @@ export default function MainStorePurchase() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
 
   const handleLineChange = (index, field, value) => {
     const updated = [...lineItems];
@@ -151,8 +155,8 @@ export default function MainStorePurchase() {
         remarks: remarks,
         bill_discount: billDiscount,
         vat_calculation_mode: settings.vat_calculation_mode,
-        total_vat_amount: totalVat.toFixed(2),
-        grand_total: grandTotal.toFixed(2),
+        total_vat_amount: totalVat.toFixed(3),
+        grand_total: grandTotal.toFixed(3),
         items: lineItems
       };
 
@@ -203,9 +207,9 @@ export default function MainStorePurchase() {
       render: (p) => <span className="font-semibold text-slate-900 dark:text-slate-100">{p.vendor_name}</span>
     },
     {
-      header: 'Total Amount',
+      header: `Total Amount (${currencyCode})`,
       accessor: 'total_amount',
-      render: (p) => <span className="font-bold text-emerald-600 dark:text-emerald-400">${parseFloat(p.total_amount).toFixed(2)}</span>
+      render: (p) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(p.total_amount, currencyCode, decimalPlaces)}</span>
     },
     {
       header: 'Posted By',
@@ -228,7 +232,7 @@ export default function MainStorePurchase() {
             <ShoppingCart className="w-5 h-5 text-brand-blue" />
             Main Store Vendor Purchase Invoice Entry
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Receive stock from vendors, generate batch codes, and record price/VAT controls</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Receive stock from vendors, generate batch codes, and record price & VAT controls in {currencyCode}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
@@ -236,7 +240,7 @@ export default function MainStorePurchase() {
             VAT Mode: {isItemWiseVat ? 'Line Item Tax' : 'Total Bill Tax'}
           </span>
           <span className="px-3 py-1 rounded-full bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30 text-xs font-bold">
-            Central Main Store
+            Central Main Store ({currencyCode})
           </span>
         </div>
       </div>
@@ -342,8 +346,8 @@ export default function MainStorePurchase() {
                 <tr>
                   <th className="p-3.5 w-60">Item Master (Select2 Search) *</th>
                   <th className="p-3.5">Batch Code *</th>
-                  <th className="p-3.5 w-24">Cost Price ($) *</th>
-                  <th className="p-3.5 w-24">Sales Price ($) *</th>
+                  <th className="p-3.5 w-28">Cost Price ({currencyCode}) *</th>
+                  <th className="p-3.5 w-28">Sales Price ({currencyCode}) *</th>
 
                   {/* Dynamic VAT % Column if ITEM_WISE */}
                   {isItemWiseVat && (
@@ -352,7 +356,7 @@ export default function MainStorePurchase() {
 
                   <th className="p-3.5 w-32">Expiry Date *</th>
                   <th className="p-3.5 w-20">Qty *</th>
-                  <th className="p-3.5 w-24 text-right">Subtotal ($)</th>
+                  <th className="p-3.5 w-28 text-right">Subtotal ({currencyCode})</th>
                   <th className="p-3.5 w-10 text-center">Action</th>
                 </tr>
               </thead>
@@ -360,7 +364,7 @@ export default function MainStorePurchase() {
                 {lineItems.map((line, index) => {
                   const gross = (parseFloat(line.purchase_price || 0) * parseInt(line.qty || 0));
                   const tax = isItemWiseVat ? (gross * (parseFloat(line.vat_percent || 0) / 100)) : 0;
-                  const lineSubtotal = (gross + tax).toFixed(2);
+                  const lineSubtotal = (gross + tax);
 
                   return (
                     <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
@@ -386,11 +390,11 @@ export default function MainStorePurchase() {
                       <td className="p-2.5">
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.001"
                           required
                           value={line.purchase_price}
                           onChange={(e) => handleLineChange(index, 'purchase_price', e.target.value)}
-                          placeholder="0.00"
+                          placeholder="0.000"
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
@@ -398,11 +402,11 @@ export default function MainStorePurchase() {
                       <td className="p-2.5">
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.001"
                           required
                           value={line.selling_price}
                           onChange={(e) => handleLineChange(index, 'selling_price', e.target.value)}
-                          placeholder="0.00"
+                          placeholder="0.000"
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
@@ -445,7 +449,7 @@ export default function MainStorePurchase() {
                       </td>
 
                       <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100">
-                        ${lineSubtotal}
+                        {formatCurrency(lineSubtotal, currencyCode, decimalPlaces)}
                       </td>
 
                       <td className="p-2.5 text-center">
@@ -470,16 +474,15 @@ export default function MainStorePurchase() {
         <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
           <div className="space-y-1 text-xs">
             <div className="flex items-center gap-4 text-slate-600 dark:text-slate-400">
-              <span>Gross Subtotal: <strong>${grossSubtotal.toFixed(2)}</strong></span>
+              <span>Gross Subtotal: <strong>{formatCurrency(grossSubtotal, currencyCode, decimalPlaces)}</strong></span>
 
-              {/* Discount Input in TOTAL_BILL Mode */}
               {!isItemWiseVat && (
                 <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
                   <Tag className="w-3.5 h-3.5 text-brand-orange" />
-                  <span className="font-bold text-slate-700 dark:text-slate-300">Bill Discount ($):</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Discount ({currencyCode}):</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     min="0"
                     value={billDiscount}
                     onChange={(e) => setBillDiscount(e.target.value)}
@@ -489,20 +492,20 @@ export default function MainStorePurchase() {
               )}
 
               <span>
-                Calculated VAT ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}): <strong className="text-purple-600 dark:text-purple-400">${totalVat.toFixed(2)}</strong>
+                Calculated VAT ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}): <strong className="text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</strong>
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {isItemWiseVat
                 ? 'Item-Wise Tax Mode: Individual VAT % pre-filled and calculated for each item.'
-                : `Total Bill Tax Mode: ${defaultVatRate}% VAT calculated on Net Subtotal ($${netSubtotalAfterDiscount.toFixed(2)}) after Discount.`}
+                : `Total Bill Tax Mode: ${defaultVatRate}% VAT calculated on Net Subtotal (${formatCurrency(netSubtotalAfterDiscount, currencyCode, decimalPlaces)}) after Discount.`}
             </p>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">Final Payable Grand Total</p>
-              <p className="text-2xl font-black text-brand-blue font-heading">${grandTotal.toFixed(2)}</p>
+              <p className="text-2xl font-black text-brand-blue font-heading">{formatCurrency(grandTotal, currencyCode, decimalPlaces)}</p>
             </div>
 
             <button
@@ -526,7 +529,7 @@ export default function MainStorePurchase() {
       {/* Purchase Invoices History DataTable */}
       <DataTable
         title="Recent Vendor Purchase Bills Entry History"
-        subtitle="Search and sort recorded vendor invoices"
+        subtitle={`Search and sort recorded vendor invoices in ${currencyCode}`}
         columns={historyColumns}
         data={purchases}
         searchable={true}

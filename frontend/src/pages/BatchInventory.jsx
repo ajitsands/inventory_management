@@ -3,19 +3,27 @@ import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
+import { formatCurrency } from '../utils/currency';
 import { Boxes, Building2 } from 'lucide-react';
 
 export default function BatchInventory() {
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(1);
   const [batches, setBatches] = useState([]);
+  const [settings, setSettings] = useState({ currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function init() {
       try {
-        const master = await apiFetch('/master-data');
+        const [master, settingsRes] = await Promise.all([
+          apiFetch('/master-data'),
+          apiFetch('/settings')
+        ]);
         setLocations(master.locations || []);
+        if (settingsRes.settings) {
+          setSettings(settingsRes.settings);
+        }
         if (master.locations && master.locations.length > 0) {
           setSelectedLocation(master.locations[0].id);
           fetchStock(master.locations[0].id);
@@ -28,6 +36,9 @@ export default function BatchInventory() {
     }
     init();
   }, []);
+
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
 
   const fetchStock = async (locId) => {
     setLoading(true);
@@ -68,19 +79,19 @@ export default function BatchInventory() {
       render: (b) => <span className="text-slate-700 dark:text-slate-300 font-medium">{b.vendor_name}</span>
     },
     {
-      header: 'Cost Price ($)',
+      header: `Cost Price (${currencyCode})`,
       accessor: 'purchase_price',
-      render: (b) => <span className="text-slate-700 dark:text-slate-300">${parseFloat(b.purchase_price).toFixed(2)}</span>
+      render: (b) => <span className="text-slate-700 dark:text-slate-300">{formatCurrency(b.purchase_price, currencyCode, decimalPlaces)}</span>
     },
     {
-      header: 'Sales Price ($)',
+      header: `Sales Price (${currencyCode})`,
       accessor: 'selling_price',
-      render: (b) => <span className="font-semibold text-emerald-600 dark:text-emerald-400">${parseFloat(b.selling_price).toFixed(2)}</span>
+      render: (b) => <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(b.selling_price, currencyCode, decimalPlaces)}</span>
     },
     {
-      header: 'MRP ($)',
+      header: `MRP (${currencyCode})`,
       accessor: 'mrp',
-      render: (b) => <span className="text-slate-500 dark:text-slate-400">${parseFloat(b.mrp).toFixed(2)}</span>
+      render: (b) => <span className="text-slate-500 dark:text-slate-400">{formatCurrency(b.mrp, currencyCode, decimalPlaces)}</span>
     },
     {
       header: 'Expiry Date',
@@ -117,7 +128,7 @@ export default function BatchInventory() {
             <Boxes className="w-5 h-5 text-brand-blue" />
             Location Batch Stock Inspector
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Inspect real-time batch stock balances, cost price, selling price, and expiry timelines across any location</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Inspect real-time batch stock balances, cost price, selling price, and expiry timelines in {currencyCode}</p>
         </div>
 
         {/* Searchable Location Selector */}
@@ -135,7 +146,7 @@ export default function BatchInventory() {
       {/* Pure White DataTable */}
       <DataTable
         title="Batch Stock Inventory Grid (DataTable Powered)"
-        subtitle="Search, filter, and sort stock batches dynamically"
+        subtitle={`Search, filter, and sort stock batches dynamically with ${currencyCode} prices`}
         columns={batchColumns}
         data={batches}
         searchable={true}

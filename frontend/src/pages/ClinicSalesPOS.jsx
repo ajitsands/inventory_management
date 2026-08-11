@@ -3,13 +3,14 @@ import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
-import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, UserCheck, Calculator, Tag, Percent } from 'lucide-react';
+import { formatCurrency } from '../utils/currency';
+import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag } from 'lucide-react';
 
 export default function ClinicSalesPOS() {
   const [customers, setCustomers] = useState([]);
   const [availableStock, setAvailableStock] = useState([]);
   const [salesInvoices, setSalesInvoices] = useState([]);
-  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE' });
+  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
@@ -32,7 +33,7 @@ export default function ClinicSalesPOS() {
       setAvailableStock(stockRes.batches || []);
       setSalesInvoices(salesRes.invoices || []);
 
-      const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE' };
+      const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
 
       if (custRes.customers && custRes.customers.length > 0) {
@@ -48,6 +49,9 @@ export default function ClinicSalesPOS() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
 
   const addToCart = (batch) => {
     const existing = cart.find(item => item.batch_id === batch.id);
@@ -122,8 +126,8 @@ export default function ClinicSalesPOS() {
         doctor_name: doctorName,
         discount_amount: discountAmount,
         vat_calculation_mode: settings.vat_calculation_mode,
-        total_vat_amount: totalVat.toFixed(2),
-        total_amount: grandTotal.toFixed(2),
+        total_vat_amount: totalVat.toFixed(3),
+        total_amount: grandTotal.toFixed(3),
         items: cart.map(item => ({
           batch_id: item.batch_id,
           qty: item.qty,
@@ -172,9 +176,9 @@ export default function ClinicSalesPOS() {
       render: (s) => <span className="text-slate-600 dark:text-slate-400 text-xs font-mono">{s.doctor_name || 'OPD Doctor'}</span>
     },
     {
-      header: 'Grand Total',
+      header: `Grand Total (${currencyCode})`,
       accessor: 'total_amount',
-      render: (s) => <span className="font-bold text-emerald-600 dark:text-emerald-400">${parseFloat(s.total_amount).toFixed(2)}</span>
+      render: (s) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(s.total_amount, currencyCode, decimalPlaces)}</span>
     },
     {
       header: 'Dispensed At',
@@ -192,7 +196,7 @@ export default function ClinicSalesPOS() {
             <Stethoscope className="w-5 h-5 text-brand-orange" />
             Clinic OPD Patient Sales POS & Dispensing
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Direct patient sales dispensing from clinic stock with FIFO automated deduction and Tax controls</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Direct patient sales dispensing from clinic stock with FIFO automated deduction in {currencyCode}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
@@ -200,7 +204,7 @@ export default function ClinicSalesPOS() {
             VAT Mode: {isItemWiseVat ? 'Line Item Tax' : 'Total Bill Tax'}
           </span>
           <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 text-xs font-bold">
-            Clinic Outlet #1
+            Clinic Outlet ({currencyCode})
           </span>
         </div>
       </div>
@@ -214,7 +218,7 @@ export default function ClinicSalesPOS() {
         </div>
       )}
 
-      {/* POS Grid: Left Stock Selection, Right Cart & Invoice Summary */}
+      {/* POS Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Available Clinic Stock Selection */}
         <div className="lg:col-span-7 bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
@@ -243,7 +247,7 @@ export default function ClinicSalesPOS() {
                 </div>
 
                 <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200 dark:border-slate-800/80">
-                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">${parseFloat(batch.selling_price || 0).toFixed(2)}</span>
+                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(batch.selling_price, currencyCode, decimalPlaces)}</span>
                   <span className="text-slate-500 dark:text-slate-400 font-medium">Stock: <strong className="text-slate-800 dark:text-slate-200">{batch.quantity_available}</strong></span>
                 </div>
               </div>
@@ -288,7 +292,7 @@ export default function ClinicSalesPOS() {
                     <th className="p-2.5">Item & Batch</th>
                     <th className="p-2.5 w-16 text-center">Qty</th>
                     {isItemWiseVat && <th className="p-2.5 w-16 text-center">VAT %</th>}
-                    <th className="p-2.5 w-20 text-right">Price</th>
+                    <th className="p-2.5 w-24 text-right">Price ({currencyCode})</th>
                     <th className="p-2.5 w-8 text-center"></th>
                   </tr>
                 </thead>
@@ -329,7 +333,7 @@ export default function ClinicSalesPOS() {
                         )}
 
                         <td className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-100">
-                          ${itemTotal.toFixed(2)}
+                          {formatCurrency(itemTotal, currencyCode, decimalPlaces)}
                         </td>
 
                         <td className="p-1 text-center">
@@ -359,15 +363,15 @@ export default function ClinicSalesPOS() {
             <div className="space-y-1.5 pt-2 text-xs border-t border-slate-200 dark:border-slate-800">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Gross Subtotal:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">${grossTotal.toFixed(2)}</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(grossTotal, currencyCode, decimalPlaces)}</span>
               </div>
 
               {!isItemWiseVat && (
                 <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="flex items-center gap-1 font-bold"><Tag className="w-3 h-3 text-brand-orange" /> Discount ($):</span>
+                  <span className="flex items-center gap-1 font-bold"><Tag className="w-3 h-3 text-brand-orange" /> Discount ({currencyCode}):</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.001"
                     min="0"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(e.target.value)}
@@ -378,12 +382,12 @@ export default function ClinicSalesPOS() {
 
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>VAT Tax ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}):</span>
-                <span className="font-bold text-purple-600 dark:text-purple-400">${totalVat.toFixed(2)}</span>
+                <span className="font-bold text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</span>
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800">
                 <span className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-xs">Grand Total Payable:</span>
-                <span className="text-2xl font-black text-brand-orange font-heading">${grandTotal.toFixed(2)}</span>
+                <span className="text-xl font-black text-brand-orange font-heading">{formatCurrency(grandTotal, currencyCode, decimalPlaces)}</span>
               </div>
             </div>
 
@@ -407,6 +411,7 @@ export default function ClinicSalesPOS() {
       {/* Sales Invoices History */}
       <DataTable
         title="Recent OPD Patient Sales Invoices History"
+        subtitle={`Search and sort recorded OPD sales invoices in ${currencyCode}`}
         columns={invoiceColumns}
         data={salesInvoices}
         searchable={true}

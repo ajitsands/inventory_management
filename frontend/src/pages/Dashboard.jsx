@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import { formatDate } from '../utils/date';
+import { formatCurrency } from '../utils/currency';
 import {
   Boxes,
   ShoppingCart,
@@ -18,20 +19,25 @@ export default function Dashboard({ setActiveTab }) {
   const [valuation, setValuation] = useState([]);
   const [recentMovements, setRecentMovements] = useState([]);
   const [expiryAlerts, setExpiryAlerts] = useState([]);
+  const [settings, setSettings] = useState({ currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [valRes, movRes, expRes] = await Promise.all([
+        const [valRes, movRes, expRes, settingsRes] = await Promise.all([
           apiFetch('/reports/valuation'),
           apiFetch('/reports/movement-ledger'),
-          apiFetch('/reports/expiry-alerts')
+          apiFetch('/reports/expiry-alerts'),
+          apiFetch('/settings')
         ]);
 
         setValuation(valRes.valuation || []);
         setRecentMovements(movRes.movements || []);
         setExpiryAlerts(expRes.alerts || []);
+        if (settingsRes.settings) {
+          setSettings(settingsRes.settings);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -40,6 +46,9 @@ export default function Dashboard({ setActiveTab }) {
     }
     loadDashboardData();
   }, []);
+
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
 
   const totalOrgCostValuation = valuation.reduce((acc, v) => acc + parseFloat(v.total_cost_valuation || 0), 0);
   const totalOrgSalesValuation = valuation.reduce((acc, v) => acc + parseFloat(v.total_sales_valuation || 0), 0);
@@ -132,10 +141,10 @@ export default function Dashboard({ setActiveTab }) {
             </div>
           </div>
           <div>
-            <p className="text-2xl font-black text-slate-900 dark:text-slate-100 font-heading">
-              ${totalOrgCostValuation.toFixed(2)}
+            <p className="text-xl font-black text-slate-900 dark:text-slate-100 font-heading">
+              {formatCurrency(totalOrgCostValuation, currencyCode, decimalPlaces)}
             </p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Retail Value: ${totalOrgSalesValuation.toFixed(2)}</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Retail: {formatCurrency(totalOrgSalesValuation, currencyCode, decimalPlaces)}</p>
           </div>
         </div>
 
@@ -226,7 +235,9 @@ export default function Dashboard({ setActiveTab }) {
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">Cost Valuation</p>
-                  <p className="font-bold text-emerald-600 dark:text-emerald-400">${parseFloat(loc.total_cost_valuation || 0).toFixed(2)}</p>
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(loc.total_cost_valuation, currencyCode, decimalPlaces)}
+                  </p>
                 </div>
               </div>
             </div>

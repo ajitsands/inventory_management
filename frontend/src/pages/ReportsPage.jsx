@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
 import { formatDate } from '../utils/date';
+import { formatCurrency } from '../utils/currency';
 import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp } from 'lucide-react';
 import { MOVEMENT_BADGES } from '../theme/colors';
 
@@ -10,19 +11,24 @@ export default function ReportsPage() {
   const [movements, setMovements] = useState([]);
   const [valuation, setValuation] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [settings, setSettings] = useState({ currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadReports() {
       try {
-        const [movRes, valRes, alertRes] = await Promise.all([
+        const [movRes, valRes, alertRes, settingsRes] = await Promise.all([
           apiFetch('/reports/movement-ledger'),
           apiFetch('/reports/valuation'),
-          apiFetch('/reports/expiry-alerts')
+          apiFetch('/reports/expiry-alerts'),
+          apiFetch('/settings')
         ]);
         setMovements(movRes.movements || []);
         setValuation(valRes.valuation || []);
         setAlerts(alertRes.alerts || []);
+        if (settingsRes.settings) {
+          setSettings(settingsRes.settings);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -31,6 +37,9 @@ export default function ReportsPage() {
     }
     loadReports();
   }, []);
+
+  const currencyCode = settings.currency_code || 'BHD';
+  const decimalPlaces = settings.decimal_places;
 
   const movementColumns = [
     {
@@ -81,10 +90,10 @@ export default function ReportsPage() {
       render: (m) => <span className="font-bold text-slate-900 dark:text-slate-100">{m.qty}</span>
     },
     {
-      header: 'Unit Price ($)',
+      header: `Unit Price (${currencyCode})`,
       accessor: 'unit_price',
       className: 'text-right',
-      render: (m) => <span className="font-bold text-emerald-600 dark:text-emerald-400">${parseFloat(m.unit_price).toFixed(2)}</span>
+      render: (m) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(m.unit_price, currencyCode, decimalPlaces)}</span>
     }
   ];
 
@@ -131,7 +140,7 @@ export default function ReportsPage() {
             <FileSpreadsheet className="w-5 h-5 text-brand-blue" />
             Stock Movements, Expiry & Valuation Analytics
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Auditor and Manager report hub tracking item trajectory, FIFO cost valuation, and expiry risks</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Auditor and Manager report hub tracking item trajectory, FIFO cost valuation in {currencyCode}, and expiry risks</p>
         </div>
       </div>
 
@@ -180,7 +189,7 @@ export default function ReportsPage() {
       {activeSubTab === 'valuation' && (
         <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-heading">
-            FIFO Inventory Valuation Summary by Location Tier
+            FIFO Inventory Valuation Summary by Location Tier ({currencyCode})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {valuation.map(v => (
@@ -202,11 +211,11 @@ export default function ReportsPage() {
                   </div>
                   <div className="flex justify-between text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800/60 pt-2 mt-1">
                     <span>FIFO Cost Valuation:</span>
-                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">${parseFloat(v.total_cost_valuation || 0).toFixed(2)}</strong>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(v.total_cost_valuation, currencyCode, decimalPlaces)}</strong>
                   </div>
                   <div className="flex justify-between text-slate-500 dark:text-slate-400">
                     <span>Retail Sales Value (MRP):</span>
-                    <strong className="text-brand-orange font-bold">${parseFloat(v.total_sales_valuation || 0).toFixed(2)}</strong>
+                    <strong className="text-brand-orange font-bold">{formatCurrency(v.total_sales_valuation, currencyCode, decimalPlaces)}</strong>
                   </div>
                 </div>
               </div>
