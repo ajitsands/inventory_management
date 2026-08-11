@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X } from 'lucide-react';
+import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X, FileText, Calendar, User } from 'lucide-react';
 
 export default function ClinicSalesPOS() {
   const [customers, setCustomers] = useState([]);
@@ -27,6 +27,9 @@ export default function ClinicSalesPOS() {
 
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Detail Modal State for Sales Invoice Breakdown
+  const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState(null);
 
   const loadData = async () => {
     try {
@@ -216,7 +219,17 @@ export default function ClinicSalesPOS() {
     {
       header: 'Sales Invoice #',
       accessor: 'sales_invoice_no',
-      render: (s) => <span className="font-mono font-bold text-brand-orange">{s.sales_invoice_no || s.invoice_no}</span>
+      render: (s) => (
+        <button
+          type="button"
+          onClick={() => setSelectedInvoiceDetail(s)}
+          className="font-mono font-bold text-brand-orange hover:underline text-left cursor-pointer flex items-center gap-1 group"
+          title="Click to view full invoice items breakdown"
+        >
+          <FileText className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+          {s.sales_invoice_no || s.invoice_no}
+        </button>
+      )
     },
     {
       header: 'Patient / Customer',
@@ -597,10 +610,146 @@ export default function ClinicSalesPOS() {
         </div>
       )}
 
+      {/* Detail Breakdown Modal for Sales Invoice */}
+      {selectedInvoiceDetail && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-4xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150 my-8">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/80 text-brand-orange rounded-2xl border border-amber-200 dark:border-amber-800">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">
+                      Sales Invoice: {selectedInvoiceDetail.sales_invoice_no || selectedInvoiceDetail.invoice_no}
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300 dark:border-emerald-500/40">
+                      DISPENSED
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete items breakdown & patient dispensing details</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedInvoiceDetail(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Invoice Header Details Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-400 block text-[11px]">Patient / Customer</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 mt-0.5">
+                  <User className="w-3.5 h-3.5 text-brand-orange" />
+                  {selectedInvoiceDetail.customer_name}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-slate-400 block text-[11px]">Attending Doctor</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 mt-0.5">
+                  <Stethoscope className="w-3.5 h-3.5 text-brand-blue" />
+                  {selectedInvoiceDetail.doctor_name || 'OPD Doctor'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-slate-400 block text-[11px]">Clinic Outlet</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 mt-0.5 block">
+                  {selectedInvoiceDetail.clinic_name || 'City Wellness Clinic'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-slate-400 block text-[11px]">Dispensed Date</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 mt-0.5 font-mono">
+                  <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                  {formatDate(selectedInvoiceDetail.created_at)}
+                </span>
+              </div>
+            </div>
+
+            {/* Line Items Table */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Dispensed Line Items ({selectedInvoiceDetail.items?.length || 0})
+              </h4>
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="p-3">#</th>
+                      <th className="p-3">Item Name & Code</th>
+                      <th className="p-3">Batch Code</th>
+                      <th className="p-3">Expiry Date</th>
+                      <th className="p-3 text-center">Qty Dispensed</th>
+                      <th className="p-3 text-right">Unit Price ({currencyCode})</th>
+                      <th className="p-3 text-right">Line Subtotal ({currencyCode})</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {(selectedInvoiceDetail.items || []).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
+                        <td className="p-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                        <td className="p-3">
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{item.item_name}</p>
+                          <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Code: {item.item_code}</p>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-brand-orange">{item.batch_code}</td>
+                        <td className="p-3 font-mono text-slate-600 dark:text-slate-400">{formatDate(item.expiry_date)}</td>
+                        <td className="p-3 text-center font-extrabold text-slate-900 dark:text-slate-100">{item.qty}</td>
+                        <td className="p-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
+                          {formatCurrency(item.unit_price, currencyCode, decimalPlaces)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(item.subtotal, currencyCode, decimalPlaces)}
+                        </td>
+                      </tr>
+                    ))}
+                    {(!selectedInvoiceDetail.items || selectedInvoiceDetail.items.length === 0) && (
+                      <tr>
+                        <td colSpan={7} className="p-6 text-center text-slate-400 text-xs">
+                          No line item records found for this sales invoice.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Total Footer Summary */}
+            <div className="flex justify-between items-center p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs">
+              <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Total Invoice Net Amount Payable:
+              </span>
+              <span className="text-xl font-black text-brand-orange font-heading">
+                {formatCurrency(selectedInvoiceDetail.net_amount || selectedInvoiceDetail.total_amount, currencyCode, decimalPlaces)}
+              </span>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedInvoiceDetail(null)}
+                className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+              >
+                Close Breakdown
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sales Invoices History */}
       <DataTable
         title="Recent OPD Patient Sales Invoices History"
-        subtitle={`Search and sort recorded OPD sales invoices in ${currencyCode}`}
+        subtitle={`Search and sort recorded OPD sales invoices in ${currencyCode} (Click invoice # to view items)`}
         columns={invoiceColumns}
         data={salesInvoices}
         searchable={true}

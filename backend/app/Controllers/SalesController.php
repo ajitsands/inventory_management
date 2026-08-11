@@ -24,6 +24,7 @@ class SalesController extends Controller
 
         $customerName = trim($body['customer_name'] ?? 'Walk-in Patient');
         $customerPhone = trim($body['customer_phone'] ?? '');
+        $doctorName = trim($body['doctor_name'] ?? 'OPD Doctor');
         $discount = (float)($body['discount'] ?? 0.00);
 
         $pdo = Model::getDB();
@@ -73,14 +74,15 @@ class SalesController extends Controller
 
             // Insert Sales Invoice Header
             $stmtHeader = $pdo->prepare("INSERT INTO `sales_invoices` 
-                (`sales_invoice_no`, `clinic_location_id`, `customer_name`, `customer_phone`, `total_amount`, `discount`, `net_amount`, `payment_method`, `created_by`)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (`sales_invoice_no`, `clinic_location_id`, `customer_name`, `customer_phone`, `doctor_name`, `total_amount`, `discount`, `net_amount`, `payment_method`, `created_by`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $stmtHeader->execute([
                 $salesInvoiceNo,
                 $clinicLocId,
                 $customerName,
                 $customerPhone,
+                $doctorName,
                 $grossTotal,
                 $discount,
                 $netAmount,
@@ -154,6 +156,21 @@ class SalesController extends Controller
         $sql .= " ORDER BY si.id DESC";
 
         $invoices = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
+
+        $stmtItems = $pdo->prepare("SELECT sii.*, i.name AS item_name, i.item_code, b.batch_code, b.expiry_date
+                                    FROM `sales_invoice_items` sii
+                                    JOIN `items` i ON sii.item_id = i.id
+                                    JOIN `item_batches` b ON sii.batch_id = b.id
+                                    WHERE sii.sales_invoice_id = ?");
+
+        foreach ($invoices as &$inv) {
+            $rawId = (int)$inv['id'];
+            $inv['raw_id'] = $rawId;
+            $inv['id'] = UrlSecurity::encrypt($inv['id']);
+
+            $stmtItems->execute([$rawId]);
+            $inv['items'] = $stmtItems->fetchAll(\PDO::FETCH_ASSOC);
+        }
 
         $this->json([
             'success'  => true,
