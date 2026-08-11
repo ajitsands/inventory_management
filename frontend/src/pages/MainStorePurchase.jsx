@@ -164,6 +164,7 @@ export default function MainStorePurchase() {
 
         return {
           item_id: itemIdToUse,
+          raw_item_id: matchedMasterItem?.raw_id || item.raw_item_id,
           batch_code: `BTC-${matchedMasterItem ? matchedMasterItem.item_code : dateString()}-${rand4()}`,
           purchase_price: purchasePrice.toFixed(3),
           selling_price: sellingPrice,
@@ -188,6 +189,7 @@ export default function MainStorePurchase() {
     if (field === 'item_id') {
       const selectedItem = items.find(i => i.id == value || i.raw_id == value);
       if (selectedItem) {
+        updated[index].raw_item_id = selectedItem.raw_id;
         updated[index].batch_code = `BTC-${selectedItem.item_code}-${rand4()}`;
       }
     }
@@ -247,9 +249,14 @@ export default function MainStorePurchase() {
 
     setSubmitting(true);
     try {
+      const selectedVendor = vendors.find(v => v.id === vendorId || v.raw_id == vendorId);
+      const selectedQuotation = openQuotations.find(q => q.id === selectedQuotationId || q.raw_id == selectedQuotationId);
+
       const payload = {
         vendor_id: vendorId,
+        raw_vendor_id: selectedVendor?.raw_id,
         quotation_id: selectedQuotationId || null,
+        raw_quotation_id: selectedQuotation?.raw_id,
         po_no: poNo,
         po_date: poDate,
         vendor_invoice_no: vendorInvoiceNo,
@@ -259,7 +266,13 @@ export default function MainStorePurchase() {
         vat_calculation_mode: settings.vat_calculation_mode,
         total_vat_amount: totalVat.toFixed(3),
         grand_total: grandTotal.toFixed(3),
-        items: lineItems
+        items: lineItems.map(l => {
+          const matchedItem = items.find(i => i.id === l.item_id || i.raw_id == l.item_id);
+          return {
+            ...l,
+            raw_item_id: matchedItem?.raw_id || l.raw_item_id
+          };
+        })
       };
 
       const res = await apiFetch('/purchase/create', {

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../core/Controller.php';
 require_once __DIR__ . '/../../core/Model.php';
 require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Models/ItemBatch.php';
 require_once __DIR__ . '/../Services/InventoryLedgerService.php';
 require_once __DIR__ . '/../Services/SequenceService.php';
@@ -13,23 +14,60 @@ class PurchaseController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
-        if (empty($body['vendor_id']) || empty($body['po_no']) || empty($body['po_date']) || empty($body['vendor_invoice_no']) || empty($body['items']) || !is_array($body['items'])) {
-            $this->error('Missing required purchase invoice parameters or items array.', 400);
+        $rawVendorId = UrlSecurity::decrypt($body['vendor_id'] ?? null);
+        $vendorId = !empty($rawVendorId) ? (int)$rawVendorId : (int)($body['raw_vendor_id'] ?? $body['vendor_id'] ?? 0);
+
+        if (!$vendorId || empty($body['po_no']) || empty($body['po_date']) || empty($body['vendor_invoice_no']) || empty($body['items']) || !is_array($body['items'])) {
+            $this->error('Please select a valid vendor, enter invoice details, and add at least 1 item line.', 400);
+            return;
         }
+
+        $rawQuotationId = UrlSecurity::decrypt($body['quotation_id'] ?? null);
+        $quotationId = !empty($rawQuotationId) ? (int)$rawQuotationId : (int)($body['raw_quotation_id'] ?? $body['quotation_id'] ?? 0);
+        if (!$quotationId) $quotationId = null;
+
+        $rawLocationId = UrlSecurity::decrypt($body['location_id'] ?? null);
+        $locationId = !empty($rawLocationId) ? (int)$rawLocationId : (int)($body['raw_location_id'] ?? $body['location_id'] ?? 1);
 
         $pdo = Model::getDB();
         Model::beginTransaction();
 
         try {
             $invoiceNo = SequenceService::generateNextNumber('purchase_invoice');
-            $locationId = $body['location_id'] ?? 1; // Default to Central Main Store
-            $quotationId = !empty($body['quotation_id']) ? (int)$body['quotation_id'] : null;
 
-            // Calculate total amount
+            // Calculate total amount & validate items
             $totalAmount = 0.00;
-            foreach ($body['items'] as $item) {
-                $subtotal = (float)$item['purchase_price'] * (int)$item['qty'];
+            $validatedItems = [];
+
+            foreach ($body['items'] as $idx => $item) {
+                $rawItemId = UrlSecurity::decrypt($item['item_id'] ?? null);
+                $itemId = !empty($rawItemId) ? (int)$rawItemId : (int)($item['raw_item_id'] ?? $item['item_id'] ?? 0);
+                $qty = (int)($item['qty'] ?? 0);
+                $purchasePrice = (float)($item['purchase_price'] ?? 0);
+                $sellingPrice = (float)($item['selling_price'] ?? 0);
+                $mrp = (float)($item['mrp'] ?? $sellingPrice);
+                $expiryDate = $item['expiry_date'] ?? date('Y-m-d', strtotime('+1 year'));
+                $batchCode = trim($item['batch_code'] ?? '') ?: ('BTC-' . date('Ymd') . '-' . rand(1000, 9999));
+
+                if (!$itemId || $qty <= 0) {
+                    Model::rollBack();
+                    $this->error("Line #" . ($idx + 1) . " requires a valid item selection and quantity greater than 0.", 400);
+                    return;
+                }
+
+                $subtotal = $purchasePrice * $qty;
                 $totalAmount += $subtotal;
+
+                $validatedItems[] = [
+                    'item_id'        => $itemId,
+                    'batch_code'     => $batchCode,
+                    'qty'            => $qty,
+                    'purchase_price' => $purchasePrice,
+                    'selling_price'  => $sellingPrice,
+                    'mrp'            => $mrp,
+                    'expiry_date'    => $expiryDate,
+                    'subtotal'       => $subtotal
+                ];
             }
 
             // Insert Purchase Invoice Header
@@ -43,7 +81,7 @@ class PurchaseController extends Controller
                 $body['po_date'],
                 $body['vendor_invoice_no'],
                 $body['vendor_invoice_date'] ?? date('Y-m-d'),
-                $body['vendor_id'],
+                $vendorId,
                 $locationId,
                 $totalAmount,
                 $body['remarks'] ?? null,
@@ -61,52 +99,43 @@ class PurchaseController extends Controller
             // Statement for updating quotation received qty if linked
             $stmtUpdateQuotationItem = $pdo->prepare("UPDATE `vendor_quotation_items` SET `received_qty` = `received_qty` + ? WHERE `quotation_id` = ? AND `item_id` = ?");
 
-            foreach ($body['items'] as $line) {
-                $itemId = (int)$line['item_id'];
-                $qty = (int)$line['qty'];
-                $purchasePrice = (float)$line['purchase_price'];
-                $sellingPrice = (float)$line['selling_price'];
-                $mrp = (float)($line['mrp'] ?? $sellingPrice);
-                $expiryDate = $line['expiry_date'];
-                $batchCode = trim($line['batch_code'] ?? '') ?: ('BTC-' . date('Ymd') . '-' . rand(1000, 9999));
-                $subtotal = $purchasePrice * $qty;
-
+            foreach ($validatedItems as $line) {
                 // Create Item Batch record
                 $batchId = ItemBatch::createBatch([
-                    'item_id'        => $itemId,
-                    'batch_code'     => $batchCode,
-                    'vendor_id'      => $body['vendor_id'],
-                    'purchase_price' => $purchasePrice,
-                    'selling_price'  => $sellingPrice,
-                    'mrp'            => $mrp,
-                    'expiry_date'    => $expiryDate,
+                    'item_id'        => $line['item_id'],
+                    'batch_code'     => $line['batch_code'],
+                    'vendor_id'      => $vendorId,
+                    'purchase_price' => $line['purchase_price'],
+                    'selling_price'  => $line['selling_price'],
+                    'mrp'            => $line['mrp'],
+                    'expiry_date'    => $line['expiry_date'],
                     'purchase_date'  => $today,
-                    'qty'            => $qty
+                    'qty'            => $line['qty']
                 ]);
 
                 // Insert Invoice Item Line
                 $stmtItem->execute([
                     $purchaseInvoiceId,
-                    $itemId,
+                    $line['item_id'],
                     $batchId,
-                    $qty,
-                    $purchasePrice,
-                    $sellingPrice,
-                    $mrp,
-                    $expiryDate,
-                    $subtotal
+                    $line['qty'],
+                    $line['purchase_price'],
+                    $line['selling_price'],
+                    $line['mrp'],
+                    $line['expiry_date'],
+                    $line['subtotal']
                 ]);
 
                 // Update linked Quotation received qty if applicable
                 if ($quotationId) {
-                    $stmtUpdateQuotationItem->execute([$qty, $quotationId, $itemId]);
+                    $stmtUpdateQuotationItem->execute([$line['qty'], $quotationId, $line['item_id']]);
                 }
 
                 // Credit stock to Main Branch
-                InventoryLedgerService::creditStock($locationId, $batchId, $qty);
+                InventoryLedgerService::creditStock($locationId, $batchId, $line['qty']);
 
                 // Log Item Movement Ledger
-                InventoryLedgerService::recordMovement('PURCHASE', $invoiceNo, $itemId, $batchId, null, $locationId, $qty, $purchasePrice, $sellingPrice, $user['user_id']);
+                InventoryLedgerService::recordMovement('PURCHASE', $invoiceNo, $line['item_id'], $batchId, null, $locationId, $line['qty'], $line['purchase_price'], $line['selling_price'], $user['user_id']);
             }
 
             // Check if linked Quotation should be marked PARTIALLY_RECEIVED or CLOSED
@@ -132,7 +161,7 @@ class PurchaseController extends Controller
                 'invoice_no'          => $invoiceNo,
                 'quotation_id'        => $quotationId,
                 'total_amount'        => $totalAmount,
-                'items_count'         => count($body['items'])
+                'items_count'         => count($validatedItems)
             ], $locationId);
 
             $this->json([
