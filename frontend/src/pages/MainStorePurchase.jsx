@@ -122,6 +122,15 @@ export default function MainStorePurchase() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => {
+        setMessage(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
 
