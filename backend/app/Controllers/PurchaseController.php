@@ -189,6 +189,26 @@ class PurchaseController extends Controller
                 JOIN `users` u ON pi.created_by = u.id
                 ORDER BY pi.id DESC";
         $invoices = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
+
+        $stmtItems = $pdo->prepare("SELECT pii.*, i.name AS item_name, i.item_code, i.unit_of_measure, ib.batch_code
+                                    FROM `purchase_invoice_items` pii
+                                    JOIN `items` i ON pii.item_id = i.id
+                                    JOIN `item_batches` ib ON pii.batch_id = ib.id
+                                    WHERE pii.purchase_invoice_id = ?");
+
+        foreach ($invoices as &$inv) {
+            $rawId = (int)$inv['id'];
+            $inv['raw_id'] = $rawId;
+            $inv['id'] = UrlSecurity::encrypt($inv['id']);
+            $stmtItems->execute([$rawId]);
+            $itemsList = $stmtItems->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($itemsList as &$it) {
+                $it['raw_item_id'] = (int)$it['item_id'];
+                $it['item_id'] = UrlSecurity::encrypt($it['item_id']);
+            }
+            $inv['items'] = $itemsList;
+        }
+
         $this->json([
             'success'  => true,
             'invoices' => $invoices

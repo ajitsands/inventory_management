@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Sparkles } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Sparkles, FileText, Eye, X } from 'lucide-react';
 
 export default function MainStorePurchase() {
   const [vendors, setVendors] = useState([]);
@@ -16,6 +16,9 @@ export default function MainStorePurchase() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
+
+  // Selected Invoice Modal State
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   // Form State
   const [vendorId, setVendorId] = useState('');
@@ -298,9 +301,19 @@ export default function MainStorePurchase() {
 
   const historyColumns = [
     {
-      header: 'Internal Invoice #',
+      header: 'Internal Purchase Reference Number',
       accessor: 'invoice_no',
-      render: (p) => <span className="font-mono font-bold text-brand-blue">{p.invoice_no}</span>
+      render: (p) => (
+        <button
+          type="button"
+          onClick={() => setSelectedInvoice(p)}
+          className="font-mono font-bold text-brand-blue hover:underline focus:outline-none flex items-center gap-1 text-left"
+          title="Click to view purchased line items detail popup"
+        >
+          <FileText className="w-3.5 h-3.5 text-brand-blue" />
+          {p.invoice_no}
+        </button>
+      )
     },
     {
       header: 'PO Number & Date',
@@ -350,7 +363,7 @@ export default function MainStorePurchase() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Header Banner */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
@@ -664,12 +677,119 @@ export default function MainStorePurchase() {
       {/* Purchase Invoices History DataTable */}
       <DataTable
         title="Recent Vendor Purchase Bills Entry History"
-        subtitle={`Search and sort recorded vendor invoices in ${currencyCode}`}
+        subtitle={`Click any Internal Purchase Reference Number to view purchased items details`}
         columns={historyColumns}
         data={purchases}
         searchable={true}
         defaultPageSize={5}
       />
+
+      {/* Purchased Items Detail Popup Modal */}
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-3xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-brand-blue" />
+                  Purchase Invoice Breakdown: <span className="font-mono text-brand-blue">{selectedInvoice.invoice_no}</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Detailed list of stock items purchased under this reference number</p>
+              </div>
+              <button
+                onClick={() => setSelectedInvoice(null)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Header Details Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Vendor / Supplier</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{selectedInvoice.vendor_name}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Vendor Invoice #</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{selectedInvoice.vendor_invoice_no}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Linked PO #</span>
+                <span className="font-mono font-bold text-brand-blue">{selectedInvoice.po_no}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-semibold text-[10px] uppercase">PO Date</span>
+                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{formatDate(selectedInvoice.po_date)}</span>
+              </div>
+            </div>
+
+            {/* Items Breakdown Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+              <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
+                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3">Item Name & Code</th>
+                    <th className="p-3 w-32">Batch Code</th>
+                    <th className="p-3 w-20 text-center">Qty</th>
+                    <th className="p-3 w-28 text-right">Cost Price ({currencyCode})</th>
+                    <th className="p-3 w-28 text-right">Sales Price ({currencyCode})</th>
+                    <th className="p-3 w-28">Expiry Date</th>
+                    <th className="p-3 w-28 text-right">Subtotal ({currencyCode})</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                  {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                    selectedInvoice.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                        <td className="p-3">
+                          <span className="font-bold text-slate-900 dark:text-slate-100 block">{item.item_name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">Code: {item.item_code} • UOM: {item.unit_of_measure}</span>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
+                          {item.batch_code}
+                        </td>
+                        <td className="p-3 text-center font-bold text-brand-blue">
+                          {item.qty}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {formatCurrency(item.purchase_price, currencyCode, decimalPlaces)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(item.selling_price, currencyCode, decimalPlaces)}
+                        </td>
+                        <td className="p-3 font-mono text-slate-600 dark:text-slate-400 text-[11px]">
+                          {formatDate(item.expiry_date)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                          {formatCurrency(item.subtotal, currencyCode, decimalPlaces)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="p-4 text-center text-slate-400">No items found for this invoice.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Total Footer */}
+            <div className="flex justify-between items-center pt-2">
+              <div className="text-xs text-slate-500">
+                Posted by: <strong>{selectedInvoice.created_by_name}</strong> on {formatDate(selectedInvoice.created_at)}
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Invoice Value</span>
+                <span className="text-xl font-black text-brand-blue font-heading">
+                  {formatCurrency(selectedInvoice.total_amount, currencyCode, decimalPlaces)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
