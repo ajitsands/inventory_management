@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../core/Controller.php';
 require_once __DIR__ . '/../../core/Model.php';
 require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Services/FifoAllocationEngine.php';
 require_once __DIR__ . '/../Services/InventoryLedgerService.php';
 require_once __DIR__ . '/../Services/SequenceService.php';
@@ -13,12 +14,15 @@ class SalesController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER', 'OPD_USER']);
         $body = $this->getRequestBody();
 
-        if (empty($body['clinic_location_id']) || empty($body['items']) || !is_array($body['items'])) {
+        $rawClinicLoc = UrlSecurity::decrypt($body['clinic_location_id'] ?? null);
+        $clinicLocId = !empty($rawClinicLoc) ? (int)$rawClinicLoc : (int)($body['raw_clinic_location_id'] ?? $body['clinic_location_id'] ?? $user['location_id'] ?? 4);
+
+        if (!$clinicLocId || empty($body['items']) || !is_array($body['items'])) {
             $this->error('Missing required parameters for OPD dispensing invoice.', 400);
+            return;
         }
 
-        $clinicLocId = (int)$body['clinic_location_id'];
-        $customerName = trim($body['customer_name'] ?? 'Walk-in Customer');
+        $customerName = trim($body['customer_name'] ?? 'Walk-in Patient');
         $customerPhone = trim($body['customer_phone'] ?? '');
         $discount = (float)($body['discount'] ?? 0.00);
 
@@ -28,14 +32,21 @@ class SalesController extends Controller
         try {
             $salesInvoiceNo = SequenceService::generateNextNumber('sales_invoice');
 
-            // Step 1: Pre-calculate FIFO batch allocations for all requested items
+            // Pre-calculate FIFO batch allocations for all requested items
             $invoiceLinesToProcess = [];
             $grossTotal = 0.00;
 
-            foreach ($body['items'] as $itemLine) {
-                $itemId = (int)$itemLine['item_id'];
-                $requestedQty = (int)$itemLine['qty'];
+            foreach ($body['items'] as $idx => $itemLine) {
+                $rawItemId = UrlSecurity::decrypt($itemLine['item_id'] ?? null);
+                $itemId = !empty($rawItemId) ? (int)$rawItemId : (int)($itemLine['raw_item_id'] ?? $itemLine['item_id'] ?? 0);
+                $requestedQty = (int)($itemLine['qty'] ?? 0);
                 $overridePrice = isset($itemLine['unit_price']) ? (float)$itemLine['unit_price'] : null;
+
+                if (!$itemId || $requestedQty <= 0) {
+                    Model::rollBack();
+                    $this->error("Line #" . ($idx + 1) . " requires a valid item selection and quantity greater than 0.", 400);
+                    return;
+                }
 
                 // Automatic FIFO Batch Allocation Service Call
                 $allocatedBatches = FifoAllocationEngine::allocateStock($itemId, $requestedQty, $clinicLocId);
@@ -60,7 +71,7 @@ class SalesController extends Controller
 
             $netAmount = max(0.00, $grossTotal - $discount);
 
-            // Step 2: Insert Sales Invoice Header
+            // Insert Sales Invoice Header
             $stmtHeader = $pdo->prepare("INSERT INTO `sales_invoices` 
                 (`sales_invoice_no`, `clinic_location_id`, `customer_name`, `customer_phone`, `total_amount`, `discount`, `net_amount`, `payment_method`, `created_by`)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -79,7 +90,7 @@ class SalesController extends Controller
 
             $salesInvoiceId = $pdo->lastInsertId();
 
-            // Step 3: Insert Invoice Line Items, Debit Stock, & Record Movements
+            // Insert Invoice Line Items, Debit Stock, & Record Movements
             $stmtLine = $pdo->prepare("INSERT INTO `sales_invoice_items` 
                 (`sales_invoice_id`, `item_id`, `batch_id`, `qty`, `unit_price`, `subtotal`)
                 VALUES (?, ?, ?, ?, ?, ?)");
@@ -136,7 +147,6 @@ class SalesController extends Controller
                 JOIN `locations` l ON si.clinic_location_id = l.id
                 JOIN `users` u ON si.created_by = u.id";
         
-        // Scope OPD users to their own clinic if restricted
         if ($user['role'] === 'OPD_USER' && !empty($user['location_id'])) {
             $sql .= " WHERE si.clinic_location_id = " . (int)$user['location_id'];
         }

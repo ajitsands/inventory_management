@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag } from 'lucide-react';
+import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X } from 'lucide-react';
 
 export default function ClinicSalesPOS() {
   const [customers, setCustomers] = useState([]);
@@ -15,11 +15,17 @@ export default function ClinicSalesPOS() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
+  // Search Filter State for Available Clinic Stock
+  const [stockSearchTerm, setStockSearchTerm] = useState('');
+
   // Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [cart, setCart] = useState([]);
   const [discountAmount, setDiscountAmount] = useState('0.00');
   const [doctorName, setDoctorName] = useState('Dr. Smith (OPD)');
+
+  // Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const loadData = async () => {
     try {
@@ -53,18 +59,22 @@ export default function ClinicSalesPOS() {
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
 
+  // Add Item to Consumption List / Cart
   const addToCart = (batch) => {
-    const existing = cart.find(item => item.batch_id === batch.id);
+    const batchId = batch.batch_id || batch.id;
+    const existing = cart.find(item => item.batch_id === batchId);
     if (existing) {
       if (existing.qty < batch.quantity_available) {
-        setCart(cart.map(item => item.batch_id === batch.id ? { ...item, qty: item.qty + 1 } : item));
+        setCart(cart.map(item => item.batch_id === batchId ? { ...item, qty: item.qty + 1 } : item));
       } else {
         alert(`Cannot exceed available batch stock of ${batch.quantity_available} units.`);
       }
     } else {
       setCart([...cart, {
-        batch_id: batch.id,
+        batch_id: batchId,
+        raw_batch_id: batch.raw_batch_id || batch.raw_id || batchId,
         item_id: batch.item_id,
+        raw_item_id: batch.raw_item_id || batch.item_id,
         item_name: batch.item_name,
         batch_code: batch.batch_code,
         expiry_date: batch.expiry_date,
@@ -83,6 +93,17 @@ export default function ClinicSalesPOS() {
   };
 
   const removeFromCart = (index) => setCart(cart.filter((_, i) => i !== index));
+
+  // Filter available stock by search query
+  const filteredStock = availableStock.filter(b => {
+    if (!stockSearchTerm.trim()) return true;
+    const query = stockSearchTerm.toLowerCase();
+    return (
+      (b.item_name && b.item_name.toLowerCase().includes(query)) ||
+      (b.item_code && b.item_code.toLowerCase().includes(query)) ||
+      (b.batch_code && b.batch_code.toLowerCase().includes(query))
+    );
+  });
 
   // Calculations
   const isItemWiseVat = settings.vat_calculation_mode === 'ITEM_WISE';
@@ -106,30 +127,47 @@ export default function ClinicSalesPOS() {
     ? (grossTotal + totalVat)
     : (netSubtotalAfterDiscount + totalVat);
 
-  const handleCheckout = async (e) => {
-    e.preventDefault();
+  const validateCheckout = () => {
     setMessage(null);
-
     if (!selectedCustomerId) {
       setMessage({ type: 'error', text: 'Please select a patient / customer.' });
-      return;
+      return false;
     }
     if (cart.length === 0) {
-      setMessage({ type: 'error', text: 'Cart is empty. Select items to dispense.' });
-      return;
+      setMessage({ type: 'error', text: 'Consumption list is empty. Click available stock items to add.' });
+      return false;
     }
+    return true;
+  };
 
+  const handleOpenConfirm = (e) => {
+    e.preventDefault();
+    if (validateCheckout()) {
+      setShowConfirmModal(true);
+    }
+  };
+
+  const executeCheckout = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
     try {
+      const selectedCust = customers.find(c => c.id === selectedCustomerId || c.raw_id == selectedCustomerId);
+
       const payload = {
+        clinic_location_id: 4, // Clinic OPD #1
         customer_id: selectedCustomerId,
+        raw_customer_id: selectedCust?.raw_id,
+        customer_name: selectedCust?.name || 'Walk-in Patient',
         doctor_name: doctorName,
-        discount_amount: discountAmount,
+        discount: discountAmount,
         vat_calculation_mode: settings.vat_calculation_mode,
         total_vat_amount: totalVat.toFixed(3),
         total_amount: grandTotal.toFixed(3),
         items: cart.map(item => ({
+          item_id: item.item_id,
+          raw_item_id: item.raw_item_id,
           batch_id: item.batch_id,
+          raw_batch_id: item.raw_batch_id,
           qty: item.qty,
           unit_price: item.selling_price,
           vat_percent: item.vat_percent
@@ -142,7 +180,7 @@ export default function ClinicSalesPOS() {
       });
 
       if (res.success) {
-        setMessage({ type: 'success', text: `Sales Invoice ${res.invoice_no} generated and stock deducted via FIFO!` });
+        setMessage({ type: 'success', text: `Sales Invoice ${res.sales_invoice_no || res.invoice_no} generated and stock deducted via FIFO!` });
         setCart([]);
         setDiscountAmount('0.00');
         loadData();
@@ -157,8 +195,8 @@ export default function ClinicSalesPOS() {
   const invoiceColumns = [
     {
       header: 'Sales Invoice #',
-      accessor: 'invoice_no',
-      render: (s) => <span className="font-mono font-bold text-brand-orange">{s.invoice_no}</span>
+      accessor: 'sales_invoice_no',
+      render: (s) => <span className="font-mono font-bold text-brand-orange">{s.sales_invoice_no || s.invoice_no}</span>
     },
     {
       header: 'Patient / Customer',
@@ -167,8 +205,8 @@ export default function ClinicSalesPOS() {
     },
     {
       header: 'Clinic Location',
-      accessor: 'location_name',
-      render: (s) => <span className="text-slate-600 dark:text-slate-400">{s.location_name}</span>
+      accessor: 'clinic_name',
+      render: (s) => <span className="text-slate-600 dark:text-slate-400">{s.clinic_name || s.location_name}</span>
     },
     {
       header: 'Doctor',
@@ -177,8 +215,8 @@ export default function ClinicSalesPOS() {
     },
     {
       header: `Grand Total (${currencyCode})`,
-      accessor: 'total_amount',
-      render: (s) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(s.total_amount, currencyCode, decimalPlaces)}</span>
+      accessor: 'net_amount',
+      render: (s) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(s.net_amount || s.total_amount, currencyCode, decimalPlaces)}</span>
     },
     {
       header: 'Dispensed At',
@@ -187,8 +225,10 @@ export default function ClinicSalesPOS() {
     }
   ];
 
+  const selectedCustomerObj = customers.find(c => c.id === selectedCustomerId || c.raw_id == selectedCustomerId);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Top Banner */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
@@ -220,48 +260,108 @@ export default function ClinicSalesPOS() {
 
       {/* POS Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Available Clinic Stock Selection */}
+        {/* Left Column: Available Clinic Stock Selection & Live Search */}
         <div className="lg:col-span-7 bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
-          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Available Clinic OPD Stock Batches</h3>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{availableStock.length} Batches Available</span>
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Available Clinic OPD Stock Batches</h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Click any item below to add directly into the Consumption List</p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono">
+              {filteredStock.length} Batches
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
-            {availableStock.map(batch => (
-              <div
-                key={batch.id}
-                onClick={() => addToCart(batch)}
-                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-brand-orange dark:hover:border-brand-orange cursor-pointer transition-all space-y-2 group shadow-xs"
+          {/* Search Option Filter */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+            <input
+              type="text"
+              value={stockSearchTerm}
+              onChange={(e) => setStockSearchTerm(e.target.value)}
+              placeholder="Search Clinic Available Stock by item name, code, or batch code..."
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-orange font-semibold"
+            />
+            {stockSearchTerm && (
+              <button
+                onClick={() => setStockSearchTerm('')}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs group-hover:text-brand-orange transition-colors">
-                      {batch.item_name}
-                    </h4>
-                    <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Code: {batch.item_code}</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-brand-orange/10 text-brand-orange border border-brand-orange/30">
-                    {batch.batch_code}
-                  </span>
-                </div>
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
-                <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200 dark:border-slate-800/80">
-                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(batch.selling_price, currencyCode, decimalPlaces)}</span>
-                  <span className="text-slate-500 dark:text-slate-400 font-medium">Stock: <strong className="text-slate-800 dark:text-slate-200">{batch.quantity_available}</strong></span>
+          {/* Stock Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[440px] overflow-y-auto pr-1">
+            {filteredStock.map(batch => {
+              const bId = batch.batch_id || batch.id;
+              const cartMatch = cart.find(c => c.batch_id === bId);
+              const inCartQty = cartMatch ? cartMatch.qty : 0;
+
+              return (
+                <div
+                  key={bId}
+                  onClick={() => addToCart(batch)}
+                  className={`p-4 rounded-2xl border transition-all space-y-2 group shadow-xs relative cursor-pointer ${
+                    inCartQty > 0
+                      ? 'bg-amber-50/60 dark:bg-amber-950/30 border-brand-orange/60'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-brand-orange dark:hover:border-brand-orange'
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs group-hover:text-brand-orange transition-colors">
+                        {batch.item_name}
+                      </h4>
+                      <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Code: {batch.item_code}</p>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-brand-orange/10 text-brand-orange border border-brand-orange/30">
+                        {batch.batch_code}
+                      </span>
+                      {inCartQty > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40">
+                          In List ({inCartQty})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(batch.selling_price, currencyCode, decimalPlaces)}
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px] flex items-center gap-1">
+                      Stock: <strong className="text-slate-800 dark:text-slate-200">{batch.quantity_available}</strong>
+                      <span className="text-brand-orange font-bold group-hover:underline flex items-center gap-0.5">
+                        <Plus className="w-3 h-3" /> Add
+                      </span>
+                    </span>
+                  </div>
                 </div>
+              );
+            })}
+
+            {filteredStock.length === 0 && (
+              <div className="col-span-2 p-8 text-center text-slate-400 text-xs bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+                No clinic stock batches found matching "{stockSearchTerm}".
               </div>
-            ))}
+            )}
           </div>
         </div>
 
-        {/* Right Column: Checkout Cart Form */}
+        {/* Right Column: Consumption List & Checkout Cart Form */}
         <div className="lg:col-span-5 bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-5 shadow-xs flex flex-col justify-between">
-          <form onSubmit={handleCheckout} className="space-y-4">
-            <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+          <form onSubmit={handleOpenConfirm} className="space-y-4">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-brand-orange" /> Patient Sales Order Cart
+                <ShoppingBag className="w-4 h-4 text-brand-orange" /> OPD Dispensing Consumption List
               </h3>
+              <span className="text-xs font-bold text-brand-orange bg-amber-50 dark:bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                {cart.length} Item(s)
+              </span>
             </div>
 
             <div>
@@ -280,11 +380,11 @@ export default function ClinicSalesPOS() {
                 type="text"
                 value={doctorName}
                 onChange={(e) => setDoctorName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-orange"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-orange font-semibold"
               />
             </div>
 
-            {/* Cart Table */}
+            {/* Consumption Cart Table */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
               <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
                 <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
@@ -341,6 +441,7 @@ export default function ClinicSalesPOS() {
                             type="button"
                             onClick={() => removeFromCart(index)}
                             className="text-slate-400 hover:text-rose-600 p-1"
+                            title="Remove from list"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -351,7 +452,7 @@ export default function ClinicSalesPOS() {
                   {cart.length === 0 && (
                     <tr>
                       <td colSpan={isItemWiseVat ? 5 : 4} className="p-6 text-center text-slate-400 text-xs">
-                        No items added to cart yet
+                        Consumption list is empty. Click available stock items on the left to add items.
                       </td>
                     </tr>
                   )}
@@ -407,6 +508,62 @@ export default function ClinicSalesPOS() {
           </form>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3 text-brand-orange">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/80 rounded-2xl border border-amber-200 dark:border-amber-800">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">Confirm OPD Dispensing & Sale</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Are you sure you want to generate this sales invoice?</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Patient / Customer:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedCustomerObj?.name || 'Walk-in Patient'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Attending Doctor:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{doctorName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Consumption Line Items:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{cart.length} Item(s)</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-slate-400 font-semibold">Grand Total Amount:</span>
+                <span className="font-black text-brand-orange text-sm">
+                  {formatCurrency(grandTotal, currencyCode, decimalPlaces)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeCheckout}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-brand-orange to-amber-600 text-white font-bold text-xs shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Yes, Generate & Dispense
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sales Invoices History */}
       <DataTable
