@@ -25,7 +25,7 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
-      <Header />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
       <HorizontalNavbar activeTab={activeTab} setActiveTab={setActiveTab} />
       
       {/* Full Width Main Page Content Container */}

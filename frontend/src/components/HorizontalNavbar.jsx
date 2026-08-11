@@ -8,9 +8,7 @@ import {
   Building,
   Stethoscope,
   Boxes,
-  FileSpreadsheet,
-  ShieldAlert,
-  Users
+  FileSpreadsheet
 } from 'lucide-react';
 
 export default function HorizontalNavbar({ activeTab, setActiveTab }) {
@@ -25,9 +23,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
     { id: 'clinic-transfer', label: 'Clinic Stock Transfer', icon: Building, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'opd-sales', label: 'OPD Dispensing (FIFO)', icon: Stethoscope, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER'] },
     { id: 'batches', label: 'Batch Stock Inspector', icon: Boxes, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'] },
-    { id: 'audit-trail', label: 'System Audit Trail', icon: ShieldAlert, roles: ['ADMIN', 'AUDITOR'] },
-    { id: 'reports', label: 'Movement Reports & Valuation', icon: FileSpreadsheet, roles: ['ADMIN', 'STORE_MANAGER', 'AUDITOR'] },
-    { id: 'user-mgmt', label: 'User Management', icon: Users, roles: ['ADMIN'] },
+    { id: 'reports', label: 'Movement Reports & Valuation', icon: FileSpreadsheet, roles: ['ADMIN', 'STORE_MANAGER', 'AUDITOR'] }
   ];
 
   const filteredNav = navItems.filter(item => item.roles.includes(role));
