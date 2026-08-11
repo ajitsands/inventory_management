@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp, Download, Tag } from 'lucide-react';
+import DataTable from '../components/common/DataTable';
+import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp } from 'lucide-react';
 import { MOVEMENT_BADGES } from '../theme/colors';
 
 export default function ReportsPage() {
@@ -30,25 +31,115 @@ export default function ReportsPage() {
     loadReports();
   }, []);
 
+  const movementColumns = [
+    {
+      header: 'Timestamp',
+      accessor: 'timestamp',
+      render: (m) => <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">{m.timestamp}</span>
+    },
+    {
+      header: 'Movement Type',
+      accessor: 'transaction_type',
+      render: (m) => {
+        const badge = MOVEMENT_BADGES[m.transaction_type] || { label: m.transaction_type, color: 'text-slate-600 bg-slate-100' };
+        return (
+          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
+            {badge.label}
+          </span>
+        );
+      }
+    },
+    {
+      header: 'Reference #',
+      accessor: 'reference_no',
+      render: (m) => <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{m.reference_no}</span>
+    },
+    {
+      header: 'Item & Batch Code',
+      accessor: 'item_name',
+      render: (m) => (
+        <span className="font-medium text-slate-900 dark:text-slate-100">
+          {m.item_name} <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">({m.batch_code})</span>
+        </span>
+      )
+    },
+    {
+      header: 'From Location',
+      accessor: 'from_location_name',
+      render: (m) => <span className="text-slate-600 dark:text-slate-300">{m.from_location_name || 'Vendor / External'}</span>
+    },
+    {
+      header: 'To Location',
+      accessor: 'to_location_name',
+      render: (m) => <span className="text-slate-600 dark:text-slate-300">{m.to_location_name || 'Customer / Patient'}</span>
+    },
+    {
+      header: 'Qty',
+      accessor: 'qty',
+      className: 'text-right',
+      render: (m) => <span className="font-bold text-slate-900 dark:text-slate-100">{m.qty}</span>
+    },
+    {
+      header: 'Unit Price ($)',
+      accessor: 'unit_price',
+      className: 'text-right',
+      render: (m) => <span className="font-bold text-emerald-600 dark:text-emerald-400">${parseFloat(m.unit_price).toFixed(2)}</span>
+    }
+  ];
+
+  const expiryColumns = [
+    {
+      header: 'Item Name & Code',
+      accessor: 'item_name',
+      render: (a) => <span className="font-bold text-slate-900 dark:text-slate-100">{a.item_name} ({a.item_code})</span>
+    },
+    {
+      header: 'Batch Code',
+      accessor: 'batch_code',
+      render: (a) => <span className="font-mono font-bold text-brand-blue">{a.batch_code}</span>
+    },
+    {
+      header: 'Vendor',
+      accessor: 'vendor_name',
+      render: (a) => <span className="text-slate-700 dark:text-slate-300">{a.vendor_name}</span>
+    },
+    {
+      header: 'Expiry Date',
+      accessor: 'expiry_date',
+      render: (a) => <span className="font-bold text-rose-600 dark:text-rose-400">{a.expiry_date}</span>
+    },
+    {
+      header: 'Days Remaining',
+      accessor: 'days_to_expiry',
+      render: (a) => <span className="font-bold text-amber-600 dark:text-amber-400">{a.days_to_expiry} days</span>
+    },
+    {
+      header: 'Available Qty',
+      accessor: 'total_available_qty',
+      className: 'text-right',
+      render: (a) => <span className="font-bold text-slate-900 dark:text-slate-100">{a.total_available_qty} units</span>
+    }
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-slate-100 font-heading flex items-center gap-2">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-brand-blue" />
             Stock Movements, Expiry & Valuation Analytics
           </h2>
-          <p className="text-xs text-slate-400">Auditor and Manager report hub tracking item trajectory, FIFO cost valuation, and expiry risks</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Auditor and Manager report hub tracking item trajectory, FIFO cost valuation, and expiry risks</p>
         </div>
       </div>
 
       {/* Sub Tabs */}
-      <div className="flex space-x-2 border-b border-slate-800 pb-2 text-xs font-semibold">
+      <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 pb-2 text-xs font-semibold">
         <button
           onClick={() => setActiveSubTab('ledger')}
           className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-            activeSubTab === 'ledger' ? 'bg-brand-blue text-white font-bold' : 'text-slate-400 hover:text-slate-200 bg-slate-900'
+            activeSubTab === 'ledger' ? 'bg-brand-blue text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
           }`}
         >
           <Activity className="w-4 h-4" /> Movement Ledger Trajectory
@@ -57,7 +148,7 @@ export default function ReportsPage() {
         <button
           onClick={() => setActiveSubTab('valuation')}
           className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-            activeSubTab === 'valuation' ? 'bg-brand-blue text-white font-bold' : 'text-slate-400 hover:text-slate-200 bg-slate-900'
+            activeSubTab === 'valuation' ? 'bg-brand-blue text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
           }`}
         >
           <TrendingUp className="w-4 h-4" /> Location Stock Valuation
@@ -66,7 +157,7 @@ export default function ReportsPage() {
         <button
           onClick={() => setActiveSubTab('expiry')}
           className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-            activeSubTab === 'expiry' ? 'bg-brand-blue text-white font-bold' : 'text-slate-400 hover:text-slate-200 bg-slate-900'
+            activeSubTab === 'expiry' ? 'bg-brand-blue text-white font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
           }`}
         >
           <AlertTriangle className="w-4 h-4" /> Batch Expiry Risk
@@ -75,81 +166,44 @@ export default function ReportsPage() {
 
       {/* Subtab 1: Movement Ledger */}
       {activeSubTab === 'ledger' && (
-        <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h3 className="text-sm font-bold text-slate-100 font-heading">
-            Item Trajectory Movement Ledger (Vendor ➔ Main Branch ➔ Sub Branch ➔ Clinic ➔ Customer)
-          </h3>
-          <div className="overflow-x-auto border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
-                <tr>
-                  <th className="p-3">Timestamp</th>
-                  <th className="p-3">Movement Type</th>
-                  <th className="p-3">Reference #</th>
-                  <th className="p-3">Item & Batch Code</th>
-                  <th className="p-3">From Location</th>
-                  <th className="p-3">To Location</th>
-                  <th className="p-3 text-right">Qty</th>
-                  <th className="p-3 text-right">Unit Price ($)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 bg-slate-950/50">
-                {movements.map(m => {
-                  const badge = MOVEMENT_BADGES[m.transaction_type] || { label: m.transaction_type, color: 'text-slate-400 bg-slate-800' };
-                  return (
-                    <tr key={m.id} className="hover:bg-slate-900/60 transition-all">
-                      <td className="p-3 text-slate-400 font-mono">{m.timestamp}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono font-semibold text-slate-200">{m.reference_no}</td>
-                      <td className="p-3 font-medium text-slate-200">
-                        {m.item_name} <span className="text-slate-400 font-mono text-[10px]">({m.batch_code})</span>
-                      </td>
-                      <td className="p-3 text-slate-300">{m.from_location_name || 'Vendor / External'}</td>
-                      <td className="p-3 text-slate-300">{m.to_location_name || 'Customer / Patient'}</td>
-                      <td className="p-3 text-right font-bold text-slate-100">{m.qty}</td>
-                      <td className="p-3 text-right font-bold text-emerald-400">${parseFloat(m.unit_price).toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          title="Item Trajectory Movement Ledger (Vendor ➔ Main Branch ➔ Sub Branch ➔ Clinic ➔ Customer)"
+          columns={movementColumns}
+          data={movements}
+          searchable={true}
+          defaultPageSize={10}
+        />
       )}
 
       {/* Subtab 2: Valuation */}
       {activeSubTab === 'valuation' && (
-        <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h3 className="text-sm font-bold text-slate-100 font-heading">
+        <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-heading">
             FIFO Inventory Valuation Summary by Location Tier
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {valuation.map(v => (
-              <div key={v.location_id} className="p-5 rounded-2xl bg-slate-900 border border-slate-800 glass-panel-hover space-y-2">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h4 className="font-bold text-slate-100 text-xs">{v.location_name}</h4>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-brand-blue border border-brand-blue/30">
+              <div key={v.location_id} className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 glass-panel-hover space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">{v.location_name}</h4>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 text-brand-blue border border-brand-blue/30">
                     {v.location_type}
                   </span>
                 </div>
                 <div className="text-xs space-y-1 pt-1">
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between text-slate-500 dark:text-slate-400">
                     <span>Active Stock Batches:</span>
-                    <strong className="text-slate-200">{v.total_batches || 0} Batches</strong>
+                    <strong className="text-slate-900 dark:text-slate-200">{v.total_batches || 0} Batches</strong>
                   </div>
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between text-slate-500 dark:text-slate-400">
                     <span>Total Physical Units:</span>
-                    <strong className="text-slate-200">{v.total_units || 0} Units</strong>
+                    <strong className="text-slate-900 dark:text-slate-200">{v.total_units || 0} Units</strong>
                   </div>
-                  <div className="flex justify-between text-slate-400 border-t border-slate-800/60 pt-2 mt-1">
+                  <div className="flex justify-between text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800/60 pt-2 mt-1">
                     <span>FIFO Cost Valuation:</span>
-                    <strong className="text-emerald-400 font-bold">${parseFloat(v.total_cost_valuation || 0).toFixed(2)}</strong>
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">${parseFloat(v.total_cost_valuation || 0).toFixed(2)}</strong>
                   </div>
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between text-slate-500 dark:text-slate-400">
                     <span>Retail Sales Value (MRP):</span>
                     <strong className="text-brand-orange font-bold">${parseFloat(v.total_sales_valuation || 0).toFixed(2)}</strong>
                   </div>
@@ -162,37 +216,13 @@ export default function ReportsPage() {
 
       {/* Subtab 3: Expiry Risk */}
       {activeSubTab === 'expiry' && (
-        <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h3 className="text-sm font-bold text-slate-100 font-heading">
-            Near-Expiry Batch Risk Tracker (&lt; 90 Days)
-          </h3>
-          <div className="overflow-x-auto border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
-                <tr>
-                  <th className="p-3">Item Name & Code</th>
-                  <th className="p-3">Batch Code</th>
-                  <th className="p-3">Vendor</th>
-                  <th className="p-3">Expiry Date</th>
-                  <th className="p-3">Days Remaining</th>
-                  <th className="p-3 text-right">Available Qty</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 bg-slate-950/50">
-                {alerts.map(a => (
-                  <tr key={a.id} className="hover:bg-slate-900/60 transition-all">
-                    <td className="p-3 font-bold text-slate-100">{a.item_name} ({a.item_code})</td>
-                    <td className="p-3 font-mono font-bold text-brand-blue">{a.batch_code}</td>
-                    <td className="p-3 text-slate-300">{a.vendor_name}</td>
-                    <td className="p-3 font-bold text-rose-400">{a.expiry_date}</td>
-                    <td className="p-3 font-bold text-amber-400">{a.days_to_expiry} days</td>
-                    <td className="p-3 text-right font-bold text-slate-100">{a.total_available_qty} units</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          title="Near-Expiry Batch Risk Tracker (< 90 Days)"
+          columns={expiryColumns}
+          data={alerts}
+          searchable={true}
+          defaultPageSize={10}
+        />
       )}
     </div>
   );

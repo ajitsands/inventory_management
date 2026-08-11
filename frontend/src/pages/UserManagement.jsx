@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { Users, Plus, ShieldCheck, CheckCircle2, AlertCircle, Building, Mail, User } from 'lucide-react';
+import DataTable from '../components/common/DataTable';
+import { Users, Plus, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ROLE_BADGES } from '../theme/colors';
 
 export default function UserManagement() {
@@ -74,22 +75,66 @@ export default function UserManagement() {
     }
   };
 
+  const userColumns = [
+    {
+      header: 'User & Username',
+      accessor: 'full_name',
+      render: (u) => (
+        <div>
+          <p className="font-bold text-slate-900 dark:text-slate-100">{u.full_name} <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">(@{u.username})</span></p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400">{u.email}</p>
+        </div>
+      )
+    },
+    {
+      header: 'Role Badge',
+      accessor: 'role',
+      render: (u) => {
+        const badge = ROLE_BADGES[u.role] || { label: u.role, bg: 'bg-slate-100 text-slate-700' };
+        return (
+          <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${badge.bg}`}>
+            {badge.label}
+          </span>
+        );
+      }
+    },
+    {
+      header: 'Assigned Location',
+      accessor: 'location_name',
+      render: (u) => <span className="text-slate-700 dark:text-slate-300 font-medium">{u.location_name || 'Global System Access'}</span>
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      render: (u) => (
+        <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 text-[10px] font-bold">
+          {u.status}
+        </span>
+      )
+    },
+    {
+      header: 'Created At',
+      accessor: 'created_at',
+      render: (u) => <span className="text-slate-500 dark:text-slate-400 font-mono">{u.created_at}</span>
+    }
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-slate-100 font-heading flex items-center gap-2">
-            <Users className="w-5 h-5 text-purple-400" />
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+            <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             System User Management & Role-Based Access (RBAC)
           </h2>
-          <p className="text-xs text-slate-400">Configure organization users, role permissions (Admin, Store Manager, OPD Dispenser, Auditor) and location scoping</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Configure organization users, role permissions (Admin, Store Manager, OPD Dispenser, Auditor) and location scoping</p>
         </div>
       </div>
 
       {message && (
         <div className={`p-4 rounded-xl border text-xs flex items-center gap-2 ${
-          message.type === 'success' ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300' : 'bg-rose-950/80 border-rose-500/40 text-rose-300'
+          message.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/80 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300'
         }`}>
           {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           <span>{message.text}</span>
@@ -97,64 +142,64 @@ export default function UserManagement() {
       )}
 
       {/* User Creation Form */}
-      <form onSubmit={handleSubmit} className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-        <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Create New System User</h3>
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
+        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Create New System User</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Username *</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username *</label>
             <input
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. store_mgr_south"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name *</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
             <input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Robert Smith"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address *</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address *</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="robert@organization.org"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Password *</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password *</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Role *</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Role *</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue font-semibold"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-semibold"
             >
               <option value="ADMIN">ADMIN (Full Access)</option>
               <option value="STORE_MANAGER">STORE_MANAGER (Stock Operations)</option>
@@ -164,11 +209,11 @@ export default function UserManagement() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Location Context</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Location Context</label>
             <select
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             >
               <option value="">Global / Unassigned</option>
               {locations.map(l => (
@@ -195,48 +240,15 @@ export default function UserManagement() {
         </div>
       </form>
 
-      {/* Users Directory */}
-      <div className="glass-panel p-6 rounded-2xl border border-slate-800">
-        <h3 className="text-sm font-bold text-slate-100 font-heading mb-4">Existing Organization Users</h3>
-        <div className="overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
-              <tr>
-                <th className="p-3">User & Email</th>
-                <th className="p-3">Role Badge</th>
-                <th className="p-3">Assigned Location</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Created At</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 bg-slate-950/50">
-              {users.map(u => {
-                const badge = ROLE_BADGES[u.role] || { label: u.role, bg: 'bg-slate-800 text-slate-300' };
-                return (
-                  <tr key={u.id} className="hover:bg-slate-900/60 transition-all">
-                    <td className="p-3">
-                      <p className="font-bold text-slate-100">{u.full_name} <span className="text-slate-400 font-mono text-[11px]">(@{u.username})</span></p>
-                      <p className="text-[10px] text-slate-400">{u.email}</p>
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${badge.bg}`}>
-                        {badge.label}
-                      </span>
-                    </td>
-                    <td className="p-3 text-slate-300">{u.location_name || 'Global System Access'}</td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
-                        {u.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-slate-400 font-mono">{u.created_at}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Pure White DataTable */}
+      <DataTable
+        title="Existing Organization Users Directory"
+        subtitle="Search and sort user accounts, roles, and assigned location scopes"
+        columns={userColumns}
+        data={users}
+        searchable={true}
+        defaultPageSize={10}
+      />
     </div>
   );
 }
