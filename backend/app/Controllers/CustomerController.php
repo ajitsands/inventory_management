@@ -1,11 +1,8 @@
 <?php
-namespace App\Controllers;
-
-use Core\Controller;
-use App\Models\Customer;
-use App\Services\AuditLogger;
-use App\Services\SequenceService;
-use Core\UrlSecurity;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Models/Customer.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
 class CustomerController extends Controller
 {
@@ -54,7 +51,7 @@ class CustomerController extends Controller
             'status' => 'ACTIVE'
         ]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'CREATE_CUSTOMER', null, [
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_CUSTOMER', 'CREATE_CUSTOMER', null, [
             'customer_id' => $id, 'name' => $name, 'code' => $code
         ]);
 
@@ -95,7 +92,7 @@ class CustomerController extends Controller
             'address' => $address
         ]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'UPDATE_CUSTOMER', $customer, [
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_CUSTOMER', 'UPDATE_CUSTOMER', $customer, [
             'id' => $id, 'name' => $name
         ]);
 
@@ -122,7 +119,7 @@ class CustomerController extends Controller
         $newStatus = ($customer['status'] === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
         Customer::update($id, ['status' => $newStatus]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'TOGGLE_CUSTOMER_STATUS', ['status' => $customer['status']], ['status' => $newStatus]);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_CUSTOMER', 'TOGGLE_CUSTOMER_STATUS', ['status' => $customer['status']], ['status' => $newStatus]);
 
         $this->json([
             'success' => true,
@@ -157,7 +154,7 @@ class CustomerController extends Controller
 
         Customer::delete($id);
 
-        AuditLogger::log($user['user_id'], 'MASTER_CUSTOMER', 'DELETE_CUSTOMER', $customer, null);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_CUSTOMER', 'DELETE_CUSTOMER', $customer, null);
 
         $this->json(['success' => true, 'message' => "Customer '{$customer['name']}' deleted successfully."]);
     }

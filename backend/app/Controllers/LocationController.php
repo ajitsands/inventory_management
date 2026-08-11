@@ -1,11 +1,8 @@
 <?php
-namespace App\Controllers;
-
-use Core\Controller;
-use App\Models\Location;
-use App\Services\AuditLogger;
-use App\Services\SequenceService;
-use Core\UrlSecurity;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Models/Location.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
 class LocationController extends Controller
 {
@@ -61,7 +58,7 @@ class LocationController extends Controller
             'status' => 'ACTIVE'
         ]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_LOCATION', 'CREATE_LOCATION', null, [
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_LOCATION', 'CREATE_LOCATION', null, [
             'location_id' => $id, 'name' => $name, 'type' => $type, 'code' => $code
         ]);
 
@@ -100,7 +97,7 @@ class LocationController extends Controller
             'phone' => $phone
         ]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_LOCATION', 'UPDATE_LOCATION', $location, [
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_LOCATION', 'UPDATE_LOCATION', $location, [
             'id' => $id, 'name' => $name
         ]);
 
@@ -127,7 +124,7 @@ class LocationController extends Controller
         $newStatus = ($location['status'] === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
         Location::update($id, ['status' => $newStatus]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_LOCATION', 'TOGGLE_LOCATION_STATUS', ['status' => $location['status']], ['status' => $newStatus]);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_LOCATION', 'TOGGLE_LOCATION_STATUS', ['status' => $location['status']], ['status' => $newStatus]);
 
         $this->json([
             'success' => true,
@@ -167,7 +164,7 @@ class LocationController extends Controller
 
         Location::delete($id);
 
-        AuditLogger::log($user['user_id'], 'MASTER_LOCATION', 'DELETE_LOCATION', $location, null);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_LOCATION', 'DELETE_LOCATION', $location, null);
 
         $this->json(['success' => true, 'message' => "Location '{$location['name']}' deleted successfully."]);
     }

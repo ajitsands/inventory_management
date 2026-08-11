@@ -1,10 +1,8 @@
 <?php
-namespace App\Controllers;
-
-use Core\Controller;
-use Core\Model;
-use App\Services\SequenceService;
-use App\Services\AuditLogger;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/Model.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
 class SettingsController extends Controller
 {
@@ -50,7 +48,7 @@ class SettingsController extends Controller
             }
         }
 
-        AuditLogger::log($user['user_id'], 'STORE_SETTINGS', 'UPDATE_STORE_SETTINGS', null, $data);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'STORE_SETTINGS', 'UPDATE_STORE_SETTINGS', null, $data);
 
         $this->json([
             'success' => true,
@@ -89,7 +87,7 @@ class SettingsController extends Controller
             }
         }
 
-        AuditLogger::log($user['user_id'], 'STORE_SETTINGS', 'UPDATE_SEQUENCE_PREFIXES', null, $sequences);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'STORE_SETTINGS', 'UPDATE_SEQUENCE_PREFIXES', null, $sequences);
 
         $this->json([
             'success' => true,

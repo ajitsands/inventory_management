@@ -1,7 +1,5 @@
 <?php
-namespace App\Services;
-
-use Core\Model;
+require_once __DIR__ . '/../../core/Model.php';
 
 class SequenceService
 {
@@ -9,7 +7,7 @@ class SequenceService
     {
         $pdo = Model::getDB();
         $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
-        $rows = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
+        $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         // Ensure default fallback if empty
         if (!isset($rows['currency_code'])) $rows['currency_code'] = 'BHD';
@@ -23,7 +21,7 @@ class SequenceService
     {
         $pdo = Model::getDB();
         $stmt = $pdo->query("SELECT * FROM system_sequences ORDER BY id ASC");
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public static function generateNextNumber($key)
@@ -34,7 +32,7 @@ class SequenceService
         try {
             $stmt = $pdo->prepare("SELECT * FROM system_sequences WHERE sequence_key = ? FOR UPDATE");
             $stmt->execute([$key]);
-            $seq = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $seq = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$seq) {
                 // Fallback default

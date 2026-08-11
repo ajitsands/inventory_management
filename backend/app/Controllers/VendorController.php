@@ -1,11 +1,8 @@
 <?php
-namespace App\Controllers;
-
-use Core\Controller;
-use App\Models\Vendor;
-use App\Services\AuditLogger;
-use App\Services\SequenceService;
-use Core\UrlSecurity;
+require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../Models/Vendor.php';
+require_once __DIR__ . '/../Services/SequenceService.php';
 
 class VendorController extends Controller
 {
@@ -60,7 +57,7 @@ class VendorController extends Controller
             'status' => 'ACTIVE'
         ]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_VENDOR', 'CREATE_VENDOR', null, [
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_VENDOR', 'CREATE_VENDOR', null, [
             'vendor_id' => $id, 'name' => $name, 'code' => $code
         ]);
 
@@ -105,7 +102,7 @@ class VendorController extends Controller
             'tax_id' => $taxId
         ]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_VENDOR', 'UPDATE_VENDOR', $vendor, [
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_VENDOR', 'UPDATE_VENDOR', $vendor, [
             'id' => $id, 'name' => $name
         ]);
 
@@ -132,7 +129,7 @@ class VendorController extends Controller
         $newStatus = ($vendor['status'] === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
         Vendor::update($id, ['status' => $newStatus]);
 
-        AuditLogger::log($user['user_id'], 'MASTER_VENDOR', 'TOGGLE_VENDOR_STATUS', ['status' => $vendor['status']], ['status' => $newStatus]);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_VENDOR', 'TOGGLE_VENDOR_STATUS', ['status' => $vendor['status']], ['status' => $newStatus]);
 
         $this->json([
             'success' => true,
@@ -167,7 +164,7 @@ class VendorController extends Controller
 
         Vendor::delete($id);
 
-        AuditLogger::log($user['user_id'], 'MASTER_VENDOR', 'DELETE_VENDOR', $vendor, null);
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'MASTER_VENDOR', 'DELETE_VENDOR', $vendor, null);
 
         $this->json(['success' => true, 'message' => "Vendor '{$vendor['name']}' deleted successfully."]);
     }
