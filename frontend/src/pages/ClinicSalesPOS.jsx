@@ -10,6 +10,7 @@ export default function ClinicSalesPOS() {
   const [customers, setCustomers] = useState([]);
   const [availableStock, setAvailableStock] = useState([]);
   const [salesInvoices, setSalesInvoices] = useState([]);
+  const [clinicDoctors, setClinicDoctors] = useState([]);
   const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -22,22 +23,32 @@ export default function ClinicSalesPOS() {
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [cart, setCart] = useState([]);
   const [discountAmount, setDiscountAmount] = useState('0.00');
-  const [doctorName, setDoctorName] = useState('Dr. Smith (OPD)');
+  const [doctorName, setDoctorName] = useState('');
 
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const loadData = async () => {
     try {
-      const [custRes, stockRes, salesRes, settingsRes] = await Promise.all([
+      const [custRes, stockRes, salesRes, docRes, settingsRes] = await Promise.all([
         apiFetch('/customers'),
         apiFetch('/stock/location?location_id=4'), // Clinic OPD #1
         apiFetch('/sales/list'),
+        apiFetch('/doctors/by-location?location_id=4'), // Doctors for Clinic #1
         apiFetch('/settings')
       ]);
       setCustomers(custRes.customers || []);
       setAvailableStock(stockRes.batches || []);
       setSalesInvoices(salesRes.invoices || []);
+      
+      const docs = docRes.doctors || [];
+      setClinicDoctors(docs);
+
+      if (docs.length > 0) {
+        setDoctorName(docs[0].name);
+      } else {
+        setDoctorName('Dr. Alexander Smith');
+      }
 
       const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
@@ -209,9 +220,9 @@ export default function ClinicSalesPOS() {
       render: (s) => <span className="text-slate-600 dark:text-slate-400">{s.clinic_name || s.location_name}</span>
     },
     {
-      header: 'Doctor',
+      header: 'Attending Doctor',
       accessor: 'doctor_name',
-      render: (s) => <span className="text-slate-600 dark:text-slate-400 text-xs font-mono">{s.doctor_name || 'OPD Doctor'}</span>
+      render: (s) => <span className="text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1"><Stethoscope className="w-3.5 h-3.5 text-brand-orange" /> {s.doctor_name || 'OPD Doctor'}</span>
     },
     {
       header: `Grand Total (${currencyCode})`,
@@ -227,6 +238,15 @@ export default function ClinicSalesPOS() {
 
   const selectedCustomerObj = customers.find(c => c.id === selectedCustomerId || c.raw_id == selectedCustomerId);
 
+  const doctorOptions = clinicDoctors.length > 0 ? clinicDoctors.map(d => ({
+    value: d.name,
+    label: `${d.name} (${d.speciality})`,
+    sublabel: `Code: ${d.doctor_code} • Clinic Assigned`
+  })) : [
+    { value: 'Dr. Alexander Smith', label: 'Dr. Alexander Smith (General Physician)', sublabel: 'Code: DOC-001' },
+    { value: 'Dr. Sarah Johnson', label: 'Dr. Sarah Johnson (Pediatric Specialist)', sublabel: 'Code: DOC-002' }
+  ];
+
   return (
     <div className="space-y-6 pb-12">
       {/* Top Banner */}
@@ -236,7 +256,7 @@ export default function ClinicSalesPOS() {
             <Stethoscope className="w-5 h-5 text-brand-orange" />
             Clinic OPD Patient Sales POS & Dispensing
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Direct patient sales dispensing from clinic stock with FIFO automated deduction in {currencyCode}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Direct patient sales dispensing from clinic stock with assigned doctors and FIFO automated deduction in {currencyCode}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
@@ -375,12 +395,15 @@ export default function ClinicSalesPOS() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Attending Doctor / Physician</label>
-              <input
-                type="text"
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                <span>Attending Doctor / Physician *</span>
+                <span className="text-[10px] text-brand-orange font-semibold">Assigned to Clinic</span>
+              </label>
+              <SearchableSelect
+                placeholder="Select Attending Doctor..."
+                options={doctorOptions}
                 value={doctorName}
-                onChange={(e) => setDoctorName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-orange font-semibold"
+                onChange={(val) => setDoctorName(val)}
               />
             </div>
 

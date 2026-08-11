@@ -42,6 +42,12 @@ $router->post('/api/v1/customers/update', ['CustomerController', 'update']);
 $router->post('/api/v1/customers/toggle-status', ['CustomerController', 'toggleStatus']);
 $router->post('/api/v1/customers/delete', ['CustomerController', 'destroy']);
 
+// Doctor Master Routes
+$router->get('/api/v1/doctors', ['DoctorController', 'index']);
+$router->get('/api/v1/doctors/by-location', ['DoctorController', 'getByLocation']);
+$router->post('/api/v1/doctors', ['DoctorController', 'store']);
+$router->post('/api/v1/doctors/update', ['DoctorController', 'update']);
+
 // Store Settings & Auto-Increment Sequences Routes
 $router->get('/api/v1/settings', ['SettingsController', 'index']);
 $router->post('/api/v1/settings', ['SettingsController', 'updateSettings']);
