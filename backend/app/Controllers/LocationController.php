@@ -4,6 +4,7 @@ namespace App\Controllers;
 use Core\Controller;
 use App\Models\Location;
 use App\Services\AuditLogger;
+use App\Services\SequenceService;
 use Core\UrlSecurity;
 
 class LocationController extends Controller
@@ -30,8 +31,8 @@ class LocationController extends Controller
         $address = trim($data['address'] ?? '');
         $phone = trim($data['phone'] ?? '');
 
-        if (empty($name) || empty($code)) {
-            $this->json(['error' => 'Location name and code are required.'], 400);
+        if (empty($name)) {
+            $this->json(['error' => 'Location name is required.'], 400);
             return;
         }
 
@@ -40,10 +41,15 @@ class LocationController extends Controller
             return;
         }
 
-        $existing = Location::findWhere(['code' => $code]);
-        if ($existing) {
-            $this->json(['error' => "Location code '{$code}' already exists."], 400);
-            return;
+        if (empty($code)) {
+            $seqKey = ($type === 'CLINIC') ? 'clinic' : 'branch';
+            $code = SequenceService::generateNextNumber($seqKey);
+        } else {
+            $existing = Location::findWhere(['code' => $code]);
+            if ($existing) {
+                $this->json(['error' => "Location code '{$code}' already exists."], 400);
+                return;
+            }
         }
 
         $id = Location::create([
@@ -56,13 +62,14 @@ class LocationController extends Controller
         ]);
 
         AuditLogger::log($user['user_id'], 'MASTER_LOCATION', 'CREATE_LOCATION', null, [
-            'location_id' => $id, 'name' => $name, 'type' => $type
+            'location_id' => $id, 'name' => $name, 'type' => $type, 'code' => $code
         ]);
 
         $this->json([
             'success' => true,
-            'message' => "Location '{$name}' created successfully.",
-            'location_id' => UrlSecurity::encryptId($id)
+            'message' => "Location '{$name}' created successfully with code {$code}.",
+            'location_id' => UrlSecurity::encryptId($id),
+            'code' => $code
         ]);
     }
 

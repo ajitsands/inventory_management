@@ -4,6 +4,7 @@ namespace App\Controllers;
 use Core\Controller;
 use App\Models\Customer;
 use App\Services\AuditLogger;
+use App\Services\SequenceService;
 use Core\UrlSecurity;
 
 class CustomerController extends Controller
@@ -25,7 +26,7 @@ class CustomerController extends Controller
         $data = $this->getRequestBody();
 
         $name = trim($data['name'] ?? '');
-        $code = trim($data['code'] ?? ('CUST-' . rand(1000, 9999)));
+        $code = trim($data['code'] ?? '');
         $phone = trim($data['phone'] ?? '');
         $email = trim($data['email'] ?? '');
         $address = trim($data['address'] ?? '');
@@ -35,9 +36,13 @@ class CustomerController extends Controller
             return;
         }
 
-        $existing = Customer::findWhere(['code' => $code]);
-        if ($existing) {
-            $code = 'CUST-' . rand(10000, 99999);
+        if (empty($code)) {
+            $code = SequenceService::generateNextNumber('customer');
+        } else {
+            $existing = Customer::findWhere(['code' => $code]);
+            if ($existing) {
+                $code = SequenceService::generateNextNumber('customer');
+            }
         }
 
         $id = Customer::create([
@@ -55,8 +60,9 @@ class CustomerController extends Controller
 
         $this->json([
             'success' => true,
-            'message' => "Customer '{$name}' created successfully.",
-            'customer_id' => UrlSecurity::encryptId($id)
+            'message' => "Customer '{$name}' created successfully with code {$code}.",
+            'customer_id' => UrlSecurity::encryptId($id),
+            'code' => $code
         ]);
     }
 

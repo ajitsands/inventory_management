@@ -1,6 +1,11 @@
 <?php
-require_once __DIR__ . '/../../core/Controller.php';
-require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+namespace App\Controllers;
+
+use Core\Controller;
+use Core\Model;
+use App\Services\InventoryLedgerService;
+use App\Services\AuditLogger;
+use App\Services\SequenceService;
 
 class BranchTransferController extends Controller {
 
@@ -23,8 +28,8 @@ class BranchTransferController extends Controller {
         Model::beginTransaction();
 
         try {
-            $transferNo = 'TRF-BR-' . date('Ymd-His') . '-' . rand(100, 999);
-            $invoiceNo = 'INV-INT-' . date('Ymd-His');
+            $invoiceNo = SequenceService::generateNextNumber('branch_transfer');
+            $transferNo = 'TRF-' . str_replace(['/', '-'], '', $invoiceNo);
 
             $totalVal = 0.00;
             foreach ($body['items'] as $item) {
@@ -95,7 +100,7 @@ class BranchTransferController extends Controller {
                 'transfer_id' => $transferId
             ]);
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             Model::rollBack();
             $this->error('Branch transfer failed: ' . $e->getMessage(), 500);
         }
@@ -110,7 +115,7 @@ class BranchTransferController extends Controller {
                 JOIN `locations` tl ON st.to_location_id = tl.id
                 JOIN `users` u ON st.created_by = u.id
                 ORDER BY st.id DESC";
-        $transfers = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        $transfers = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
         $this->json([
             'success'   => true,
             'transfers' => $transfers

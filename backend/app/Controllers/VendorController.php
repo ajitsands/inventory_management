@@ -4,6 +4,7 @@ namespace App\Controllers;
 use Core\Controller;
 use App\Models\Vendor;
 use App\Services\AuditLogger;
+use App\Services\SequenceService;
 use Core\UrlSecurity;
 
 class VendorController extends Controller
@@ -32,15 +33,20 @@ class VendorController extends Controller
         $address = trim($data['address'] ?? '');
         $taxId = trim($data['tax_id'] ?? '');
 
-        if (empty($name) || empty($code)) {
-            $this->json(['error' => 'Vendor name and code are required.'], 400);
+        if (empty($name)) {
+            $this->json(['error' => 'Vendor name is required.'], 400);
             return;
         }
 
-        $existing = Vendor::findWhere(['code' => $code]);
-        if ($existing) {
-            $this->json(['error' => "Vendor code '{$code}' already exists."], 400);
-            return;
+        // Auto-increment code if empty
+        if (empty($code)) {
+            $code = SequenceService::generateNextNumber('vendor');
+        } else {
+            $existing = Vendor::findWhere(['code' => $code]);
+            if ($existing) {
+                $this->json(['error' => "Vendor code '{$code}' already exists."], 400);
+                return;
+            }
         }
 
         $id = Vendor::create([
@@ -60,8 +66,9 @@ class VendorController extends Controller
 
         $this->json([
             'success' => true,
-            'message' => "Vendor '{$name}' created successfully.",
-            'vendor_id' => UrlSecurity::encryptId($id)
+            'message' => "Vendor '{$name}' created successfully with code {$code}.",
+            'vendor_id' => UrlSecurity::encryptId($id),
+            'code' => $code
         ]);
     }
 

@@ -1,7 +1,12 @@
 <?php
-require_once __DIR__ . '/../../core/Controller.php';
-require_once __DIR__ . '/../Models/ItemBatch.php';
-require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+namespace App\Controllers;
+
+use Core\Controller;
+use Core\Model;
+use App\Models\ItemBatch;
+use App\Services\InventoryLedgerService;
+use App\Services\AuditLogger;
+use App\Services\SequenceService;
 
 class PurchaseController extends Controller {
 
@@ -17,7 +22,7 @@ class PurchaseController extends Controller {
         Model::beginTransaction();
 
         try {
-            $invoiceNo = 'PUR-INV-' . date('Ymd-His') . '-' . rand(100, 999);
+            $invoiceNo = SequenceService::generateNextNumber('purchase_invoice');
             $locationId = $body['location_id'] ?? 1; // Default to Central Main Store
 
             // Calculate total amount
@@ -113,7 +118,7 @@ class PurchaseController extends Controller {
                 'total_amount'        => $totalAmount
             ]);
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             Model::rollBack();
             $this->error('Failed to post purchase invoice: ' . $e->getMessage(), 500);
         }
@@ -128,7 +133,7 @@ class PurchaseController extends Controller {
                 JOIN `locations` l ON pi.location_id = l.id
                 JOIN `users` u ON pi.created_by = u.id
                 ORDER BY pi.id DESC";
-        $invoices = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        $invoices = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
         $this->json([
             'success'  => true,
             'invoices' => $invoices

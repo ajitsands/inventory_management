@@ -1,7 +1,12 @@
 <?php
-require_once __DIR__ . '/../../core/Controller.php';
-require_once __DIR__ . '/../Services/FifoAllocationEngine.php';
-require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+namespace App\Controllers;
+
+use Core\Controller;
+use Core\Model;
+use App\Services\FifoAllocationEngine;
+use App\Services\InventoryLedgerService;
+use App\Services\AuditLogger;
+use App\Services\SequenceService;
 
 class SalesController extends Controller {
 
@@ -22,7 +27,7 @@ class SalesController extends Controller {
         Model::beginTransaction();
 
         try {
-            $salesInvoiceNo = 'INV-POS-' . date('Ymd-His') . '-' . rand(100, 999);
+            $salesInvoiceNo = SequenceService::generateNextNumber('sales_invoice');
 
             // Step 1: Pre-calculate FIFO batch allocations for all requested items
             $invoiceLinesToProcess = [];
@@ -116,7 +121,7 @@ class SalesController extends Controller {
                 'fifo_batches'     => $invoiceLinesToProcess
             ]);
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             Model::rollBack();
             $this->error('OPD Dispensing sale failed: ' . $e->getMessage(), 500);
         }
@@ -138,7 +143,7 @@ class SalesController extends Controller {
 
         $sql .= " ORDER BY si.id DESC";
 
-        $invoices = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        $invoices = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
 
         $this->json([
             'success'  => true,

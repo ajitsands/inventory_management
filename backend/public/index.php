@@ -36,6 +36,11 @@ $router->post('/api/v1/customers/update', ['CustomerController', 'update']);
 $router->post('/api/v1/customers/toggle-status', ['CustomerController', 'toggleStatus']);
 $router->post('/api/v1/customers/delete', ['CustomerController', 'destroy']);
 
+// Store Settings & Auto-Increment Sequences Routes
+$router->get('/api/v1/settings', ['SettingsController', 'index']);
+$router->post('/api/v1/settings', ['SettingsController', 'updateSettings']);
+$router->post('/api/v1/settings/sequences', ['SettingsController', 'updateSequences']);
+
 // Movement Routes
 $router->post('/api/v1/purchase/create', ['PurchaseController', 'createPurchaseInvoice']);
 $router->get('/api/v1/purchase/list', ['PurchaseController', 'getPurchaseInvoices']);
