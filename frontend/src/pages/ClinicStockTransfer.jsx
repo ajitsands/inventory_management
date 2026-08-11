@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
-import { Building, Plus, Trash2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Building, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ClinicStockTransfer() {
   const [subBranches, setSubBranches] = useState([]);
@@ -142,37 +142,37 @@ export default function ClinicStockTransfer() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-slate-100 font-heading flex items-center gap-2">
-            <Building className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+            <Building className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             Sub-Branch ➔ Clinic Outlet Stock Transfer (No Invoicing)
           </h2>
-          <p className="text-xs text-slate-400">Pure stock transfer between Sub-Branch regional hubs and Clinic outlets. No internal invoices generated.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Pure stock transfer between Sub-Branch regional hubs and Clinic outlets. No internal invoices generated.</p>
         </div>
-        <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+        <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 text-xs font-bold">
           Non-Invoiced Stock Movement
         </span>
       </div>
 
       {message && (
         <div className={`p-4 rounded-xl border text-xs flex items-center gap-2 ${
-          message.type === 'success' ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300' : 'bg-rose-950/80 border-rose-500/40 text-rose-300'
+          message.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/80 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300'
         }`}>
           {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           <span>{message.text}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Source Sub-Branch *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch *</label>
             <select
               required
               value={fromLocationId}
               onChange={(e) => handleFromLocationChange(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
             >
               {subBranches.map(sb => (
                 <option key={sb.id} value={sb.id}>{sb.name} ({sb.code})</option>
@@ -181,12 +181,12 @@ export default function ClinicStockTransfer() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Destination Clinic Outlet *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Clinic Outlet *</label>
             <select
               required
               value={toLocationId}
               onChange={(e) => setToLocationId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
             >
               {clinics.map(c => (
                 <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
@@ -195,39 +195,39 @@ export default function ClinicStockTransfer() {
           </div>
         </div>
 
-        {/* Line Items */}
+        {/* Line Items Table */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Select Stock Batches to Transfer</h3>
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Select Stock Batches to Transfer</h3>
             <button
               type="button"
               onClick={addLine}
-              className="px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-xs font-semibold hover:bg-emerald-900/40 transition-all flex items-center gap-1"
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40 text-xs font-semibold hover:bg-emerald-200 dark:hover:bg-emerald-900/40 transition-all flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" /> Add Batch Item
             </button>
           </div>
 
-          <div className="overflow-x-auto border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+            <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
+              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3">Select Sub-Branch Batch *</th>
-                  <th className="p-3">Batch Code</th>
-                  <th className="p-3">Sub-Branch Stock Avail</th>
-                  <th className="p-3 w-32">Transfer Qty *</th>
-                  <th className="p-3 w-12 text-center">Action</th>
+                  <th className="p-3.5">Select Sub-Branch Batch *</th>
+                  <th className="p-3.5">Batch Code</th>
+                  <th className="p-3.5">Sub-Branch Stock Avail</th>
+                  <th className="p-3.5 w-32">Transfer Qty *</th>
+                  <th className="p-3.5 w-12 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 bg-slate-950/50">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                 {lineItems.map((line, idx) => (
-                  <tr key={idx} className="hover:bg-slate-900/60 transition-all">
-                    <td className="p-2">
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
+                    <td className="p-2.5">
                       <select
                         required
                         value={line.batch_id}
                         onChange={(e) => handleBatchSelect(idx, e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:border-brand-blue"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-medium focus:border-brand-blue"
                       >
                         <option value="">-- Select Sub-Branch Batch --</option>
                         {subBatches.map(b => (
@@ -238,10 +238,10 @@ export default function ClinicStockTransfer() {
                       </select>
                     </td>
 
-                    <td className="p-3 font-mono text-slate-300">{line.batch_code || '-'}</td>
-                    <td className="p-3 font-bold text-slate-200">{line.available || 0} units</td>
+                    <td className="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-300">{line.batch_code || '-'}</td>
+                    <td className="p-3.5 font-bold text-slate-900 dark:text-slate-200">{line.available || 0} units</td>
 
-                    <td className="p-2">
+                    <td className="p-2.5">
                       <input
                         type="number"
                         min="1"
@@ -249,15 +249,15 @@ export default function ClinicStockTransfer() {
                         required
                         value={line.qty}
                         onChange={(e) => handleQtyChange(idx, e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:border-brand-blue"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
                       />
                     </td>
 
-                    <td className="p-2 text-center">
+                    <td className="p-2.5 text-center">
                       <button
                         type="button"
                         onClick={() => removeLine(idx)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-950/40 transition-all"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -269,8 +269,8 @@ export default function ClinicStockTransfer() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-          <p className="text-xs text-slate-400">Pure Inventory Transfer • No Invoicing Generated</p>
+        <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Pure Inventory Transfer • No Invoicing Generated</p>
           <button
             type="submit"
             disabled={submitting}
