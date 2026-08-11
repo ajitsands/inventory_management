@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
+import SearchableSelect from '../components/common/SearchableSelect';
 import { Boxes, Building2 } from 'lucide-react';
 
 export default function BatchInventory() {
@@ -118,18 +119,15 @@ export default function BatchInventory() {
           <p className="text-xs text-slate-500 dark:text-slate-400">Inspect real-time batch stock balances, cost price, selling price, and expiry timelines across any location</p>
         </div>
 
-        {/* Location Selector */}
-        <div className="flex items-center space-x-2">
-          <Building2 className="w-4 h-4 text-brand-blue" />
-          <select
+        {/* Searchable Location Selector */}
+        <div className="flex items-center space-x-2 w-72">
+          <Building2 className="w-4 h-4 text-brand-blue shrink-0" />
+          <SearchableSelect
+            placeholder="Search Location..."
+            options={locations.map(l => ({ value: l.id, label: l.name, sublabel: l.type }))}
             value={selectedLocation}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:border-brand-blue"
-          >
-            {locations.map(l => (
-              <option key={l.id} value={l.id}>[{l.type}] {l.name}</option>
-            ))}
-          </select>
+            onChange={(val) => handleLocationChange(val)}
+          />
         </div>
       </div>
 

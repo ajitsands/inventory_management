@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
+import SearchableSelect from '../components/common/SearchableSelect';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function MainStorePurchase() {
   const [vendors, setVendors] = useState([]);
@@ -210,83 +211,79 @@ export default function MainStorePurchase() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Supplier / Vendor *</label>
-            <select
-              required
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Supplier / Vendor (Select2 Search) *</label>
+            <SearchableSelect
+              placeholder="Search Vendor..."
+              options={vendors.map(v => ({ value: v.id, label: v.name, sublabel: `Code: ${v.code}` }))}
               value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
-            >
-              {vendors.map(v => (
-                <option key={v.id} value={v.id}>{v.name} ({v.code})</option>
-              ))}
-            </select>
+              onChange={(val) => setVendorId(val)}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Purchase Order (PO) Number *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Purchase Order (PO) Number *</label>
             <input
               type="text"
               required
               value={poNo}
               onChange={(e) => setPoNo(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">PO Date *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">PO Date *</label>
             <input
               type="date"
               required
               value={poDate}
               onChange={(e) => setPoDate(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Vendor Invoice Number *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Vendor Invoice Number *</label>
             <input
               type="text"
               required
               value={vendorInvoiceNo}
               onChange={(e) => setVendorInvoiceNo(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Vendor Invoice Date *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Vendor Invoice Date *</label>
             <input
               type="date"
               required
               value={vendorInvoiceDate}
               onChange={(e) => setVendorInvoiceDate(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Remarks / Note</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Remarks / Note</label>
             <input
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               placeholder="e.g. Received via Express Delivery"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
             />
           </div>
         </div>
 
-        {/* Pure White Line Items Table */}
+        {/* Line Items Table with SearchableSelect */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Line Items & Batch Control</h3>
             <button
               type="button"
               onClick={addLine}
-              className="px-3 py-1.5 rounded-xl bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30 text-xs font-semibold hover:bg-brand-blue/20 transition-all flex items-center gap-1"
+              className="px-3.5 py-1.5 rounded-xl bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30 text-xs font-semibold hover:bg-brand-blue/20 transition-all flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" /> Add Item Line
             </button>
@@ -296,15 +293,15 @@ export default function MainStorePurchase() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3">Item Master *</th>
-                  <th className="p-3">Batch Code *</th>
-                  <th className="p-3 w-28">Purchase Price ($) *</th>
-                  <th className="p-3 w-28">Sales Price ($) *</th>
-                  <th className="p-3 w-28">MRP ($)</th>
-                  <th className="p-3 w-36">Expiry Date *</th>
-                  <th className="p-3 w-24">Qty *</th>
-                  <th className="p-3 w-28 text-right">Subtotal ($)</th>
-                  <th className="p-3 w-12 text-center">Action</th>
+                  <th className="p-3.5 w-64">Item Master (Select2 Search) *</th>
+                  <th className="p-3.5">Batch Code *</th>
+                  <th className="p-3.5 w-28">Purchase Price ($) *</th>
+                  <th className="p-3.5 w-28">Sales Price ($) *</th>
+                  <th className="p-3.5 w-28">MRP ($)</th>
+                  <th className="p-3.5 w-36">Expiry Date *</th>
+                  <th className="p-3.5 w-24">Qty *</th>
+                  <th className="p-3.5 w-28 text-right">Subtotal ($)</th>
+                  <th className="p-3.5 w-12 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
@@ -312,31 +309,26 @@ export default function MainStorePurchase() {
                   const lineSubtotal = (parseFloat(line.purchase_price || 0) * parseInt(line.qty || 0)).toFixed(2);
                   return (
                     <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
-                      <td className="p-2">
-                        <select
-                          required
+                      <td className="p-2.5">
+                        <SearchableSelect
+                          placeholder="Search Item..."
+                          options={items.map(i => ({ value: i.id, label: i.name, sublabel: `Code: ${i.item_code}` }))}
                           value={line.item_id}
-                          onChange={(e) => handleLineChange(index, 'item_id', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
-                        >
-                          <option value="">-- Select Item --</option>
-                          {items.map(i => (
-                            <option key={i.id} value={i.id}>{i.name} ({i.item_code})</option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleLineChange(index, 'item_id', val)}
+                        />
                       </td>
 
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <input
                           type="text"
                           required
                           value={line.batch_code}
                           onChange={(e) => handleLineChange(index, 'batch_code', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono focus:border-brand-blue"
                         />
                       </td>
 
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <input
                           type="number"
                           step="0.01"
@@ -344,11 +336,11 @@ export default function MainStorePurchase() {
                           value={line.purchase_price}
                           onChange={(e) => handleLineChange(index, 'purchase_price', e.target.value)}
                           placeholder="0.00"
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
 
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <input
                           type="number"
                           step="0.01"
@@ -356,47 +348,47 @@ export default function MainStorePurchase() {
                           value={line.selling_price}
                           onChange={(e) => handleLineChange(index, 'selling_price', e.target.value)}
                           placeholder="0.00"
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
 
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <input
                           type="number"
                           step="0.01"
                           value={line.mrp}
                           onChange={(e) => handleLineChange(index, 'mrp', e.target.value)}
                           placeholder="0.00"
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
                         />
                       </td>
 
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <input
                           type="date"
                           required
                           value={line.expiry_date}
                           onChange={(e) => handleLineChange(index, 'expiry_date', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
                         />
                       </td>
 
-                      <td className="p-2">
+                      <td className="p-2.5">
                         <input
                           type="number"
                           min="1"
                           required
                           value={line.qty}
                           onChange={(e) => handleLineChange(index, 'qty', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
 
-                      <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100">
+                      <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100">
                         ${lineSubtotal}
                       </td>
 
-                      <td className="p-2 text-center">
+                      <td className="p-2.5 text-center">
                         <button
                           type="button"
                           onClick={() => removeLine(index)}

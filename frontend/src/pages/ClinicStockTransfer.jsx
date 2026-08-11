@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
+import SearchableSelect from '../components/common/SearchableSelect';
 import { Building, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ClinicStockTransfer() {
@@ -167,35 +168,27 @@ export default function ClinicStockTransfer() {
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch *</label>
-            <select
-              required
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch (Select2 Search) *</label>
+            <SearchableSelect
+              placeholder="Search Sub-Branch..."
+              options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})`, sublabel: sb.type }))}
               value={fromLocationId}
-              onChange={(e) => handleFromLocationChange(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
-            >
-              {subBranches.map(sb => (
-                <option key={sb.id} value={sb.id}>{sb.name} ({sb.code})</option>
-              ))}
-            </select>
+              onChange={(val) => handleFromLocationChange(val)}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Clinic Outlet *</label>
-            <select
-              required
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Clinic Outlet (Select2 Search) *</label>
+            <SearchableSelect
+              placeholder="Search Clinic..."
+              options={clinics.map(c => ({ value: c.id, label: `${c.name} (${c.code})`, sublabel: c.type }))}
               value={toLocationId}
-              onChange={(e) => setToLocationId(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
-            >
-              {clinics.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-              ))}
-            </select>
+              onChange={(val) => setToLocationId(val)}
+            />
           </div>
         </div>
 
-        {/* Line Items Table */}
+        {/* Line Items Table with SearchableSelect */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Select Stock Batches to Transfer</h3>
@@ -212,7 +205,7 @@ export default function ClinicStockTransfer() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3.5">Select Sub-Branch Batch *</th>
+                  <th className="p-3.5 w-72">Search & Select Sub-Branch Batch *</th>
                   <th className="p-3.5">Batch Code</th>
                   <th className="p-3.5">Sub-Branch Stock Avail</th>
                   <th className="p-3.5 w-32">Transfer Qty *</th>
@@ -223,19 +216,16 @@ export default function ClinicStockTransfer() {
                 {lineItems.map((line, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
                     <td className="p-2.5">
-                      <select
-                        required
+                      <SearchableSelect
+                        placeholder="Search batch or item..."
+                        options={subBatches.map(b => ({
+                          value: b.batch_id,
+                          label: b.item_name,
+                          sublabel: `Batch: ${b.batch_code} (Exp: ${b.expiry_date}) [Avail: ${b.quantity_available}]`
+                        }))}
                         value={line.batch_id}
-                        onChange={(e) => handleBatchSelect(idx, e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-medium focus:border-brand-blue"
-                      >
-                        <option value="">-- Select Sub-Branch Batch --</option>
-                        {subBatches.map(b => (
-                          <option key={b.batch_id} value={b.batch_id}>
-                            {b.item_name} | Batch: {b.batch_code} (Exp: {b.expiry_date}) [Avail: {b.quantity_available}]
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleBatchSelect(idx, val)}
+                      />
                     </td>
 
                     <td className="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-300">{line.batch_code || '-'}</td>
@@ -249,7 +239,7 @@ export default function ClinicStockTransfer() {
                         required
                         value={line.qty}
                         onChange={(e) => handleQtyChange(idx, e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
                       />
                     </td>
 

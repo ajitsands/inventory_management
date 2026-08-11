@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
+import SearchableSelect from '../components/common/SearchableSelect';
 import { Users, Plus, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ROLE_BADGES } from '../theme/colors';
 
@@ -147,79 +148,75 @@ export default function UserManagement() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Username *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Username *</label>
             <input
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. store_mgr_south"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
             <input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Robert Smith"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address *</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="robert@organization.org"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Password *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Password *</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Role *</label>
-            <select
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Role (Select2 Search) *</label>
+            <SearchableSelect
+              options={[
+                { value: 'ADMIN', label: 'ADMIN (Full Access)' },
+                { value: 'STORE_MANAGER', label: 'STORE_MANAGER (Stock Operations)' },
+                { value: 'OPD_USER', label: 'OPD_USER (Clinic Dispensing Entry)' },
+                { value: 'AUDITOR', label: 'AUDITOR (Read-Only Reports)' }
+              ]}
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-semibold"
-            >
-              <option value="ADMIN">ADMIN (Full Access)</option>
-              <option value="STORE_MANAGER">STORE_MANAGER (Stock Operations)</option>
-              <option value="OPD_USER">OPD_USER (Clinic Dispensing Entry)</option>
-              <option value="AUDITOR">AUDITOR (Read-Only Reports)</option>
-            </select>
+              onChange={(val) => setRole(val)}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Location Context</label>
-            <select
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Location Context (Select2 Search)</label>
+            <SearchableSelect
+              placeholder="Global System Access"
+              options={locations.map(l => ({ value: l.id, label: l.name, sublabel: l.type }))}
               value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
-            >
-              <option value="">Global / Unassigned</option>
-              {locations.map(l => (
-                <option key={l.id} value={l.id}>[{l.type}] {l.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setLocationId(val)}
+            />
           </div>
         </div>
 

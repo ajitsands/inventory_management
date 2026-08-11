@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import DataTable from '../components/common/DataTable';
+import SearchableSelect from '../components/common/SearchableSelect';
 import { Stethoscope, Plus, Trash2, CheckCircle2, AlertCircle, ShoppingBag, Sparkles } from 'lucide-react';
 
 export default function ClinicSalesPOS() {
@@ -221,17 +222,13 @@ export default function ClinicSalesPOS() {
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Clinic Outlet *</label>
-            <select
-              required
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Clinic Outlet (Select2 Search) *</label>
+            <SearchableSelect
+              placeholder="Search Clinic..."
+              options={clinics.map(c => ({ value: c.id, label: `${c.name} (${c.code})`, sublabel: c.type }))}
               value={clinicLocationId}
-              onChange={(e) => setClinicLocationId(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
-            >
-              {clinics.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-              ))}
-            </select>
+              onChange={(val) => setClinicLocationId(val)}
+            />
           </div>
 
           <div>
@@ -241,7 +238,7 @@ export default function ClinicSalesPOS() {
               required
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
             />
           </div>
 
@@ -252,26 +249,26 @@ export default function ClinicSalesPOS() {
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
               placeholder="+1 555-000-0000"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Payment Method</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'CASH', label: 'Cash' },
+                { value: 'CARD', label: 'Credit / Debit Card' },
+                { value: 'INSURANCE', label: 'Medical Insurance Claim' },
+                { value: 'UPI', label: 'Digital Wallet / UPI' }
+              ]}
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:border-brand-blue"
-            >
-              <option value="CASH">Cash</option>
-              <option value="CARD">Credit / Debit Card</option>
-              <option value="INSURANCE">Medical Insurance Claim</option>
-              <option value="UPI">Digital Wallet / UPI</option>
-            </select>
+              onChange={(val) => setPaymentMethod(val)}
+            />
           </div>
         </div>
 
-        {/* Cart Line Items Table */}
+        {/* Cart Line Items Table with SearchableSelect */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Dispensing Items Cart</h3>
@@ -288,7 +285,7 @@ export default function ClinicSalesPOS() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3.5">Select Item *</th>
+                  <th className="p-3.5 w-64">Select Item to Dispense (Select2 Search) *</th>
                   <th className="p-3.5 w-36">Unit Price ($)</th>
                   <th className="p-3.5 w-32">Quantity *</th>
                   <th className="p-3.5 w-36 text-right">Subtotal ($)</th>
@@ -301,17 +298,12 @@ export default function ClinicSalesPOS() {
                   return (
                     <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
                       <td className="p-2.5">
-                        <select
-                          required
+                        <SearchableSelect
+                          placeholder="Search Item..."
+                          options={items.map(i => ({ value: i.id, label: i.name, sublabel: `Code: ${i.item_code}` }))}
                           value={c.item_id}
-                          onChange={(e) => handleItemSelect(idx, e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-medium focus:border-brand-blue"
-                        >
-                          <option value="">-- Select Item to Dispense --</option>
-                          {items.map(i => (
-                            <option key={i.id} value={i.id}>{i.name} ({i.item_code})</option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleItemSelect(idx, val)}
+                        />
                       </td>
 
                       <td className="p-2.5">
@@ -322,7 +314,7 @@ export default function ClinicSalesPOS() {
                           value={c.unit_price}
                           onChange={(e) => handleCartChange(idx, 'unit_price', e.target.value)}
                           placeholder="20.00"
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
 
@@ -333,7 +325,7 @@ export default function ClinicSalesPOS() {
                           required
                           value={c.qty}
                           onChange={(e) => handleCartChange(idx, 'qty', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
                         />
                       </td>
 
@@ -367,7 +359,7 @@ export default function ClinicSalesPOS() {
                 min="0"
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
-                className="w-28 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-slate-100 font-bold"
+                className="w-28 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1 text-xs text-slate-900 dark:text-slate-100 font-bold"
               />
             </div>
             <div>
