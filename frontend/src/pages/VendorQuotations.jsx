@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { FileText, Plus, Trash2, CheckCircle2, AlertCircle, Lock, ShieldAlert } from 'lucide-react';
+import { FileText, Plus, Trash2, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
 
 export default function VendorQuotations() {
   const [quotations, setQuotations] = useState([]);
@@ -41,14 +41,15 @@ export default function VendorQuotations() {
 
   const loadData = async () => {
     try {
-      const [qRes, masterRes, settingsRes] = await Promise.all([
+      const [qRes, masterRes, itemsRes, settingsRes] = await Promise.all([
         apiFetch('/quotations'),
-        apiFetch('/master-data'),
+        apiFetch('/vendors'),
+        apiFetch('/items'),
         apiFetch('/settings')
       ]);
       setQuotations(qRes.quotations || []);
       setVendors(masterRes.vendors || []);
-      setItems(masterRes.items || []);
+      setItems(itemsRes.items || []);
       if (settingsRes.settings) setSettings(settingsRes.settings);
       if (masterRes.vendors && masterRes.vendors.length > 0) {
         setVendorId(masterRes.vendors[0].id);
@@ -217,7 +218,7 @@ export default function VendorQuotations() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Header Banner */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
@@ -270,137 +271,147 @@ export default function VendorQuotations() {
 
       {/* Tab 1: Create Form */}
       {activeTab === 'create' && (
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
-          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Generate Vendor Quotation / Purchase Order</h3>
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs min-h-[600px] flex flex-col justify-between">
+          <div className="space-y-6">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Generate Vendor Quotation / Purchase Order</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Vendor / Supplier *</label>
+                <SearchableSelect
+                  placeholder="Search Vendor..."
+                  options={vendors.map(v => ({ value: v.id, label: v.name, sublabel: `Code: ${v.code}` }))}
+                  value={vendorId}
+                  onChange={(val) => setVendorId(val)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Quotation Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={quotationDate}
+                  onChange={(e) => setQuotationDate(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Expected Delivery Date</label>
+                <input
+                  type="date"
+                  value={expectedDate}
+                  onChange={(e) => setExpectedDate(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-semibold"
+                />
+              </div>
+            </div>
+
+            {/* Line Items Container with Full Bottom Height & Generous Spacing */}
+            <div className="pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Quotation Items & Quantities</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Select items from Item Master catalog and specify ordered quantities and unit prices</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addLine}
+                  className="px-4 py-2 rounded-xl bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30 text-xs font-bold hover:bg-brand-blue/20 transition-all flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" /> Add Item Line
+                </button>
+              </div>
+
+              {/* Table wrapper with min-height up to bottom of page */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 min-h-[380px] pb-48">
+                <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="p-3.5 w-1/2">Item Master (Select2 Search) *</th>
+                      <th className="p-3.5 w-32">Ordered Qty *</th>
+                      <th className="p-3.5 w-36">Unit Price ({currencyCode}) *</th>
+                      <th className="p-3.5 w-36 text-right">Subtotal ({currencyCode})</th>
+                      <th className="p-3.5 w-12 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {lineItems.map((line, index) => {
+                      const subtotal = (parseFloat(line.unit_price || 0) * parseInt(line.ordered_qty || 0));
+                      return (
+                        <tr key={index} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
+                          <td className="p-3">
+                            <SearchableSelect
+                              placeholder="Search Item Master..."
+                              options={items.map(i => ({
+                                value: i.id,
+                                label: i.name,
+                                sublabel: `Code: ${i.item_code} • UOM: ${i.unit_of_measure}`
+                              }))}
+                              value={line.item_id}
+                              onChange={(val) => handleLineChange(index, 'item_id', val)}
+                            />
+                          </td>
+
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={line.ordered_qty}
+                              onChange={(e) => handleLineChange(index, 'ordered_qty', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
+                            />
+                          </td>
+
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              step="0.001"
+                              required
+                              value={line.unit_price}
+                              onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                              placeholder="0.000"
+                              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
+                            />
+                          </td>
+
+                          <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100 text-sm">
+                            {formatCurrency(subtotal, currencyCode, decimalPlaces)}
+                          </td>
+
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => removeLine(index)}
+                              className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                              title="Remove Line"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-800 mt-6">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Vendor / Supplier *</label>
-              <SearchableSelect
-                placeholder="Search Vendor..."
-                options={vendors.map(v => ({ value: v.id, label: v.name, sublabel: `Code: ${v.code}` }))}
-                value={vendorId}
-                onChange={(val) => setVendorId(val)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Quotation Date *</label>
-              <input
-                type="date"
-                required
-                value={quotationDate}
-                onChange={(e) => setQuotationDate(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Expected Delivery Date</label>
-              <input
-                type="date"
-                value={expectedDate}
-                onChange={(e) => setExpectedDate(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
-              />
-            </div>
-          </div>
-
-          {/* Line Items Table */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Quotation Items & Quantities</h3>
-              <button
-                type="button"
-                onClick={addLine}
-                className="px-3.5 py-1.5 rounded-xl bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue border border-brand-blue/30 text-xs font-semibold hover:bg-brand-blue/20 transition-all flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Item Line
-              </button>
-            </div>
-
-            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
-              <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
-                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="p-3.5 w-96">Item Master (Select2 Search) *</th>
-                    <th className="p-3.5 w-36">Ordered Qty *</th>
-                    <th className="p-3.5 w-36">Unit Price ({currencyCode}) *</th>
-                    <th className="p-3.5 w-36 text-right">Subtotal ({currencyCode})</th>
-                    <th className="p-3.5 w-12 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  {lineItems.map((line, index) => {
-                    const subtotal = (parseFloat(line.unit_price || 0) * parseInt(line.ordered_qty || 0));
-                    return (
-                      <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
-                        <td className="p-2.5">
-                          <SearchableSelect
-                            placeholder="Search Item..."
-                            options={items.map(i => ({ value: i.id, label: i.name, sublabel: `Code: ${i.item_code} • UOM: ${i.unit_of_measure}` }))}
-                            value={line.item_id}
-                            onChange={(val) => handleLineChange(index, 'item_id', val)}
-                          />
-                        </td>
-
-                        <td className="p-2.5">
-                          <input
-                            type="number"
-                            min="1"
-                            required
-                            value={line.ordered_qty}
-                            onChange={(e) => handleLineChange(index, 'ordered_qty', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
-                          />
-                        </td>
-
-                        <td className="p-2.5">
-                          <input
-                            type="number"
-                            step="0.001"
-                            required
-                            value={line.unit_price}
-                            onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                            placeholder="0.000"
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
-                          />
-                        </td>
-
-                        <td className="p-3.5 text-right font-bold text-slate-900 dark:text-slate-100">
-                          {formatCurrency(subtotal, currencyCode, decimalPlaces)}
-                        </td>
-
-                        <td className="p-2.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeLine(index)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
-                            title="Remove Line"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
-            <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Total Quotation Value:</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Total Quotation Value:</p>
               <p className="text-2xl font-black text-brand-blue font-heading">{formatCurrency(calculateTotal(), currencyCode, decimalPlaces)}</p>
             </div>
 
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#1C8DCD] to-[#146ca1] text-white font-bold text-xs shadow-lg glow-blue hover:brightness-110 active:scale-[0.99] transition-all flex items-center gap-2"
+              className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#1C8DCD] to-[#146ca1] text-white font-bold text-xs shadow-lg glow-blue hover:brightness-110 active:scale-[0.99] transition-all flex items-center gap-2"
             >
               <CheckCircle2 className="w-4 h-4" /> Generate Quotation / PO
             </button>

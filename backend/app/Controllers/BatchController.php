@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Models/ItemBatch.php';
 require_once __DIR__ . '/../Models/Location.php';
 require_once __DIR__ . '/../Models/Vendor.php';
@@ -15,9 +16,16 @@ class BatchController extends Controller {
         }
 
         $batches = ItemBatch::getBatchesByLocation((int)$locationId);
+        $encrypted = array_map(function($b) {
+            $b['raw_id'] = (int)$b['id'];
+            $b['id'] = UrlSecurity::encrypt($b['id']);
+            $b['batch_id'] = UrlSecurity::encrypt($b['batch_id'] ?? $b['raw_id']);
+            return $b;
+        }, $batches);
+
         $this->json([
             'success' => true,
-            'batches' => $batches
+            'batches' => $encrypted
         ]);
     }
 
@@ -27,11 +35,15 @@ class BatchController extends Controller {
         $vendors = Vendor::getAll();
         $items = Item::getAll();
 
+        $encLocations = array_map(function($l) { $l['raw_id'] = (int)$l['id']; $l['id'] = UrlSecurity::encrypt($l['id']); return $l; }, $locations);
+        $encVendors = array_map(function($v) { $v['raw_id'] = (int)$v['id']; $v['id'] = UrlSecurity::encrypt($v['id']); return $v; }, $vendors);
+        $encItems = array_map(function($i) { $i['raw_id'] = (int)$i['id']; $i['id'] = UrlSecurity::encrypt($i['id']); return $i; }, $items);
+
         $this->json([
             'success'   => true,
-            'locations' => $locations,
-            'vendors'   => $vendors,
-            'items'     => $items
+            'locations' => $encLocations,
+            'vendors'   => $encVendors,
+            'items'     => $encItems
         ]);
     }
 }
