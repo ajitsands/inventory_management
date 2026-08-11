@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../core/Controller.php';
 require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Models/Customer.php';
 require_once __DIR__ . '/../Services/SequenceService.php';
 
@@ -10,7 +11,8 @@ class CustomerController extends Controller
     {
         $customers = Customer::getAllWithTransactionCheck();
         $encrypted = array_map(function($c) {
-            $c['id'] = UrlSecurity::encryptId($c['id']);
+            $c['raw_id'] = (int)$c['id'];
+            $c['id'] = UrlSecurity::encrypt($c['id']);
             return $c;
         }, $customers);
 
@@ -58,7 +60,7 @@ class CustomerController extends Controller
         $this->json([
             'success' => true,
             'message' => "Customer '{$name}' created successfully with code {$code}.",
-            'customer_id' => UrlSecurity::encryptId($id),
+            'customer_id' => UrlSecurity::encrypt($id),
             'code' => $code
         ]);
     }
@@ -68,7 +70,7 @@ class CustomerController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Customer ID is required.'], 400);
             return;
@@ -104,7 +106,7 @@ class CustomerController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Customer ID is required.'], 400);
             return;
@@ -133,7 +135,7 @@ class CustomerController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Customer ID is required.'], 400);
             return;

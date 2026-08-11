@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../core/Controller.php';
 require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Models/Vendor.php';
 require_once __DIR__ . '/../Services/SequenceService.php';
 
@@ -10,7 +11,8 @@ class VendorController extends Controller
     {
         $vendors = Vendor::getAllWithTransactionCheck();
         $encryptedVendors = array_map(function($v) {
-            $v['id'] = UrlSecurity::encryptId($v['id']);
+            $v['raw_id'] = (int)$v['id'];
+            $v['id'] = UrlSecurity::encrypt($v['id']);
             return $v;
         }, $vendors);
 
@@ -64,7 +66,7 @@ class VendorController extends Controller
         $this->json([
             'success' => true,
             'message' => "Vendor '{$name}' created successfully with code {$code}.",
-            'vendor_id' => UrlSecurity::encryptId($id),
+            'vendor_id' => UrlSecurity::encrypt($id),
             'code' => $code
         ]);
     }
@@ -74,7 +76,7 @@ class VendorController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Vendor ID is required.'], 400);
             return;
@@ -114,7 +116,7 @@ class VendorController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Vendor ID is required.'], 400);
             return;
@@ -143,7 +145,7 @@ class VendorController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Vendor ID is required.'], 400);
             return;

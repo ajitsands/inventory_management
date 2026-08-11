@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../core/Controller.php';
 require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Models/Location.php';
 require_once __DIR__ . '/../Services/SequenceService.php';
 
@@ -10,7 +11,8 @@ class LocationController extends Controller
     {
         $locations = Location::getAllWithTransactionCheck();
         $encrypted = array_map(function($l) {
-            $l['id'] = UrlSecurity::encryptId($l['id']);
+            $l['raw_id'] = (int)$l['id'];
+            $l['id'] = UrlSecurity::encrypt($l['id']);
             return $l;
         }, $locations);
 
@@ -65,7 +67,7 @@ class LocationController extends Controller
         $this->json([
             'success' => true,
             'message' => "Location '{$name}' created successfully with code {$code}.",
-            'location_id' => UrlSecurity::encryptId($id),
+            'location_id' => UrlSecurity::encrypt($id),
             'code' => $code
         ]);
     }
@@ -75,7 +77,7 @@ class LocationController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Location ID is required.'], 400);
             return;
@@ -109,7 +111,7 @@ class LocationController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Location ID is required.'], 400);
             return;
@@ -138,7 +140,7 @@ class LocationController extends Controller
         $user = $this->requireAuth();
         $data = $this->getRequestBody();
 
-        $id = $data['id'] ?? null;
+        $id = UrlSecurity::decrypt($data['id'] ?? null);
         if (!$id) {
             $this->json(['error' => 'Location ID is required.'], 400);
             return;
