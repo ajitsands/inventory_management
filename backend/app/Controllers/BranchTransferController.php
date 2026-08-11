@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../core/Controller.php';
 require_once __DIR__ . '/../../core/Model.php';
 require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Services/InventoryLedgerService.php';
 require_once __DIR__ . '/../Services/SequenceService.php';
 
@@ -12,15 +13,20 @@ class BranchTransferController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
-        if (empty($body['from_location_id']) || empty($body['to_location_id']) || empty($body['items']) || !is_array($body['items'])) {
-            $this->error('Missing parameters for branch transfer.', 400);
-        }
+        $rawFromLoc = UrlSecurity::decrypt($body['from_location_id'] ?? null);
+        $fromLoc = !empty($rawFromLoc) ? (int)$rawFromLoc : (int)($body['raw_from_location_id'] ?? $body['from_location_id'] ?? 1);
 
-        $fromLoc = (int)$body['from_location_id'];
-        $toLoc = (int)$body['to_location_id'];
+        $rawToLoc = UrlSecurity::decrypt($body['to_location_id'] ?? null);
+        $toLoc = !empty($rawToLoc) ? (int)$rawToLoc : (int)($body['raw_to_location_id'] ?? $body['to_location_id'] ?? 0);
+
+        if (!$fromLoc || !$toLoc || empty($body['items']) || !is_array($body['items'])) {
+            $this->error('Missing parameters or destination sub-branch for branch transfer.', 400);
+            return;
+        }
 
         if ($fromLoc === $toLoc) {
             $this->error('Source and destination locations cannot be identical.', 400);
+            return;
         }
 
         $pdo = Model::getDB();
@@ -30,9 +36,35 @@ class BranchTransferController extends Controller
             $invoiceNo = SequenceService::generateNextNumber('branch_transfer');
             $transferNo = 'TRF-' . str_replace(['/', '-'], '', $invoiceNo);
 
+            $validatedItems = [];
             $totalVal = 0.00;
-            foreach ($body['items'] as $item) {
-                $totalVal += (float)$item['unit_price'] * (int)$item['qty'];
+
+            foreach ($body['items'] as $idx => $line) {
+                $rawItemId = UrlSecurity::decrypt($line['item_id'] ?? null);
+                $itemId = !empty($rawItemId) ? (int)$rawItemId : (int)($line['raw_item_id'] ?? $line['item_id'] ?? 0);
+
+                $rawBatchId = UrlSecurity::decrypt($line['batch_id'] ?? null);
+                $batchId = !empty($rawBatchId) ? (int)$rawBatchId : (int)($line['raw_batch_id'] ?? $line['batch_id'] ?? 0);
+
+                $qty = (int)($line['qty'] ?? 0);
+                $unitPrice = (float)($line['unit_price'] ?? 0);
+
+                if (!$itemId || !$batchId || $qty <= 0) {
+                    Model::rollBack();
+                    $this->error("Batch line #" . ($idx + 1) . " requires a valid batch selection and transfer quantity greater than 0.", 400);
+                    return;
+                }
+
+                $subtotal = $unitPrice * $qty;
+                $totalVal += $subtotal;
+
+                $validatedItems[] = [
+                    'item_id'    => $itemId,
+                    'batch_id'   => $batchId,
+                    'qty'        => $qty,
+                    'unit_price' => $unitPrice,
+                    'subtotal'   => $subtotal
+                ];
             }
 
             $stmtHeader = $pdo->prepare("INSERT INTO `stock_transfers` 
@@ -56,28 +88,22 @@ class BranchTransferController extends Controller
                 (`transfer_id`, `item_id`, `batch_id`, `qty`, `unit_price`, `subtotal`)
                 VALUES (?, ?, ?, ?, ?, ?)");
 
-            foreach ($body['items'] as $line) {
-                $itemId = (int)$line['item_id'];
-                $batchId = (int)$line['batch_id'];
-                $qty = (int)$line['qty'];
-                $unitPrice = (float)$line['unit_price'];
-                $subtotal = $unitPrice * $qty;
-
+            foreach ($validatedItems as $line) {
                 $stmtItem->execute([
                     $transferId,
-                    $itemId,
-                    $batchId,
-                    $qty,
-                    $unitPrice,
-                    $subtotal
+                    $line['item_id'],
+                    $line['batch_id'],
+                    $line['qty'],
+                    $line['unit_price'],
+                    $line['subtotal']
                 ]);
 
                 // Debit Main Store & Credit Sub Branch
-                InventoryLedgerService::debitStock($fromLoc, $batchId, $qty);
-                InventoryLedgerService::creditStock($toLoc, $batchId, $qty);
+                InventoryLedgerService::debitStock($fromLoc, $line['batch_id'], $line['qty']);
+                InventoryLedgerService::creditStock($toLoc, $line['batch_id'], $line['qty']);
 
                 // Movement Ledger
-                InventoryLedgerService::recordMovement('BRANCH_TRANSFER', $transferNo, $itemId, $batchId, $fromLoc, $toLoc, $qty, $unitPrice, $unitPrice, $user['user_id']);
+                InventoryLedgerService::recordMovement('BRANCH_TRANSFER', $transferNo, $line['item_id'], $line['batch_id'], $fromLoc, $toLoc, $line['qty'], $line['unit_price'], $line['unit_price'], $user['user_id']);
             }
 
             Model::commit();

@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
+import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2, HelpCircle, X } from 'lucide-react';
 
 export default function SubBranchInvoicing() {
   const [subBranches, setSubBranches] = useState([]);
@@ -15,10 +15,11 @@ export default function SubBranchInvoicing() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // Form State
+  // Form & Modal State
   const [toLocationId, setToLocationId] = useState('');
   const [remarks, setRemarks] = useState('');
   const [lineItems, setLineItems] = useState([createEmptyLine()]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   function createEmptyLine() {
     return {
@@ -71,6 +72,8 @@ export default function SubBranchInvoicing() {
       const selectedBatch = availableStock.find(b => b.batch_id == value || b.id == value);
       if (selectedBatch) {
         updated[index].item_id = selectedBatch.item_id;
+        updated[index].raw_item_id = selectedBatch.raw_item_id || selectedBatch.item_id;
+        updated[index].raw_batch_id = selectedBatch.raw_batch_id || selectedBatch.raw_id || selectedBatch.batch_id || selectedBatch.id;
         updated[index].unit_price = selectedBatch.purchase_price || selectedBatch.selling_price;
         updated[index].max_qty = selectedBatch.quantity_available;
       }
@@ -85,36 +88,65 @@ export default function SubBranchInvoicing() {
     }
   };
 
+  // Keyboard shortcut: Pressing Enter on Transfer Qty adds a new line row automatically
+  const handleKeyDownOnQty = (e, index) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (index === lineItems.length - 1) {
+        addLine();
+      }
+    }
+  };
+
   const calculateTotal = () => lineItems.reduce((acc, line) => acc + (parseFloat(line.unit_price || 0) * parseInt(line.qty || 0)), 0);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const validateForm = () => {
     setMessage(null);
-
     if (!toLocationId) {
       setMessage({ type: 'error', text: 'Please select a destination Sub-Branch.' });
-      return;
+      return false;
     }
 
     for (let i = 0; i < lineItems.length; i++) {
       const line = lineItems[i];
       if (!line.batch_id || !line.qty) {
         setMessage({ type: 'error', text: `Please select a batch and quantity for line item #${i + 1}.` });
-        return;
+        return false;
       }
       if (line.qty > line.max_qty) {
         setMessage({ type: 'error', text: `Line #${i + 1} quantity (${line.qty}) exceeds available stock (${line.max_qty}).` });
-        return;
+        return false;
       }
     }
+    return true;
+  };
 
+  const handleOpenConfirm = (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      setShowConfirmModal(true);
+    }
+  };
+
+  const executeSubmit = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
     try {
+      const selectedBranch = subBranches.find(b => b.id === toLocationId || b.raw_id == toLocationId);
+
       const payload = {
         from_location_id: 1, // Central Main Store
         to_location_id: toLocationId,
+        raw_to_location_id: selectedBranch?.raw_id,
         remarks: remarks,
-        items: lineItems
+        items: lineItems.map(l => {
+          const selectedBatch = availableStock.find(b => (b.batch_id || b.id) == l.batch_id);
+          return {
+            ...l,
+            raw_item_id: selectedBatch?.raw_item_id || selectedBatch?.item_id || l.raw_item_id,
+            raw_batch_id: selectedBatch?.raw_batch_id || selectedBatch?.raw_id || selectedBatch?.id || l.raw_batch_id
+          };
+        })
       };
 
       const res = await apiFetch('/transfer/branch', {
@@ -167,8 +199,10 @@ export default function SubBranchInvoicing() {
     }
   ];
 
+  const selectedBranchObj = subBranches.find(b => b.id === toLocationId || b.raw_id == toLocationId);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Header Banner */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
@@ -193,14 +227,14 @@ export default function SubBranchInvoicing() {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
+      <form onSubmit={handleOpenConfirm} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Transfer Invoice Header Information</h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Sub-Branch (Select2 Search) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Sub-Branch *</label>
             <SearchableSelect
               placeholder="Search Sub-Branch..."
               options={subBranches.map(b => ({ value: b.id, label: b.name, sublabel: `Code: ${b.code}` }))}
@@ -241,7 +275,7 @@ export default function SubBranchInvoicing() {
                   <th className="p-3.5 w-96">Available Main Store Stock Batch *</th>
                   <th className="p-3.5 w-32">Unit Cost ({currencyCode})</th>
                   <th className="p-3.5 w-28">Available Stock</th>
-                  <th className="p-3.5 w-28">Transfer Qty *</th>
+                  <th className="p-3.5 w-28">Transfer Qty (Press Enter for New Row) *</th>
                   <th className="p-3.5 w-36 text-right">Line Total ({currencyCode})</th>
                   <th className="p-3.5 w-12 text-center">Action</th>
                 </tr>
@@ -280,7 +314,9 @@ export default function SubBranchInvoicing() {
                           required
                           value={line.qty}
                           onChange={(e) => handleLineChange(index, 'qty', e.target.value)}
+                          onKeyDown={(e) => handleKeyDownOnQty(e, index)}
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-bold"
+                          placeholder="Qty..."
                         />
                       </td>
 
@@ -329,6 +365,58 @@ export default function SubBranchInvoicing() {
           </button>
         </div>
       </form>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3 text-cyan-600 dark:text-cyan-400">
+              <div className="p-3 bg-cyan-50 dark:bg-cyan-950/80 rounded-2xl border border-cyan-200 dark:border-cyan-800">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">Confirm Branch Stock Transfer</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Are you sure you want to dispatch this transfer?</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Destination Sub-Branch:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedBranchObj?.name || 'Selected Sub-Branch'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Batch Items Count:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{lineItems.length} Batch Line(s)</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-slate-400 font-semibold">Total Invoiced Value:</span>
+                <span className="font-black text-cyan-600 dark:text-cyan-400 text-sm">
+                  {formatCurrency(calculateTotal(), currencyCode, decimalPlaces)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeSubmit}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold text-xs shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Yes, Dispatch Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* History */}
       <DataTable

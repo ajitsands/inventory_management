@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 import SearchableSelect from '../components/common/SearchableSelect';
-import { Building, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Building, Plus, Trash2, CheckCircle2, AlertCircle, HelpCircle, X } from 'lucide-react';
 
 export default function ClinicStockTransfer() {
   const [subBranches, setSubBranches] = useState([]);
@@ -16,6 +16,7 @@ export default function ClinicStockTransfer() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   function createEmptyLine() {
     return { batch_id: '', item_id: '', qty: 1, available: 0, batch_code: '', item_name: '' };
@@ -32,7 +33,7 @@ export default function ClinicStockTransfer() {
 
       if (subs.length > 0) {
         setFromLocationId(subs[0].id);
-        fetchSubBatches(subs[0].id);
+        fetchSubBatches(subs[0].id, subs[0]);
       }
       if (clns.length > 0) setToLocationId(clns[0].id);
     } catch (err) {
@@ -42,9 +43,11 @@ export default function ClinicStockTransfer() {
     }
   };
 
-  const fetchSubBatches = async (locId) => {
+  const fetchSubBatches = async (locId, locObj = null) => {
+    const currentLoc = locObj || subBranches.find(s => s.id === locId);
+    const queryParam = currentLoc?.raw_id || locId;
     try {
-      const data = await apiFetch(`/stock/location?location_id=${locId}`);
+      const data = await apiFetch(`/stock/location?location_id=${encodeURIComponent(queryParam)}`);
       setSubBatches(data.batches || []);
     } catch (err) {
       console.error(err);
@@ -62,12 +65,14 @@ export default function ClinicStockTransfer() {
   };
 
   const handleBatchSelect = (idx, batchId) => {
-    const selected = subBatches.find(b => b.batch_id == batchId);
+    const selected = subBatches.find(b => b.batch_id == batchId || b.id == batchId);
     const updated = [...lineItems];
     if (selected) {
       updated[idx] = {
-        batch_id: selected.batch_id,
+        batch_id: selected.batch_id || selected.id,
+        raw_batch_id: selected.raw_batch_id || selected.raw_id || selected.batch_id || selected.id,
         item_id: selected.item_id,
+        raw_item_id: selected.raw_item_id || selected.item_id,
         batch_code: selected.batch_code,
         item_name: selected.item_name,
         available: selected.quantity_available,
@@ -92,34 +97,64 @@ export default function ClinicStockTransfer() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage(null);
+  const handleKeyDownOnQty = (e, idx) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (idx === lineItems.length - 1) {
+        addLine();
+      }
+    }
+  };
 
+  const validateForm = () => {
+    setMessage(null);
     if (!fromLocationId || !toLocationId) {
       setMessage({ type: 'error', text: 'Select source Sub Branch and destination Clinic Outlet.' });
-      return;
+      return false;
     }
 
     for (let i = 0; i < lineItems.length; i++) {
       const l = lineItems[i];
       if (!l.batch_id || !l.qty || l.qty <= 0) {
         setMessage({ type: 'error', text: `Please select a batch and valid quantity for line #${i + 1}.` });
-        return;
+        return false;
       }
       if (l.qty > l.available) {
         setMessage({ type: 'error', text: `Line #${i + 1}: Qty (${l.qty}) exceeds available stock (${l.available}) at Sub Branch!` });
-        return;
+        return false;
       }
     }
+    return true;
+  };
 
+  const handleOpenConfirm = (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      setShowConfirmModal(true);
+    }
+  };
+
+  const executeSubmit = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
     try {
+      const selectedFrom = subBranches.find(s => s.id === fromLocationId || s.raw_id == fromLocationId);
+      const selectedTo = clinics.find(c => c.id === toLocationId || c.raw_id == toLocationId);
+
       const payload = {
         from_location_id: fromLocationId,
+        raw_from_location_id: selectedFrom?.raw_id,
         to_location_id: toLocationId,
+        raw_to_location_id: selectedTo?.raw_id,
         remarks: remarks,
-        items: lineItems
+        items: lineItems.map(l => {
+          const selected = subBatches.find(b => (b.batch_id || b.id) == l.batch_id);
+          return {
+            ...l,
+            raw_item_id: selected?.raw_item_id || selected?.item_id || l.raw_item_id,
+            raw_batch_id: selected?.raw_batch_id || selected?.raw_id || selected?.batch_id || selected?.id || l.raw_batch_id
+          };
+        })
       };
 
       const res = await apiFetch('/transfer/clinic', {
@@ -140,8 +175,11 @@ export default function ClinicStockTransfer() {
     }
   };
 
+  const selectedFromObj = subBranches.find(s => s.id === fromLocationId || s.raw_id == fromLocationId);
+  const selectedToObj = clinics.find(c => c.id === toLocationId || c.raw_id == toLocationId);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
@@ -165,7 +203,7 @@ export default function ClinicStockTransfer() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
+      <form onSubmit={handleOpenConfirm} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch *</label>
@@ -208,7 +246,7 @@ export default function ClinicStockTransfer() {
                   <th className="p-3.5 w-72">Search & Select Sub-Branch Batch *</th>
                   <th className="p-3.5">Batch Code</th>
                   <th className="p-3.5">Sub-Branch Stock Avail</th>
-                  <th className="p-3.5 w-32">Transfer Qty *</th>
+                  <th className="p-3.5 w-32">Transfer Qty (Press Enter for New Row) *</th>
                   <th className="p-3.5 w-12 text-center">Action</th>
                 </tr>
               </thead>
@@ -239,6 +277,7 @@ export default function ClinicStockTransfer() {
                         required
                         value={line.qty}
                         onChange={(e) => handleQtyChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDownOnQty(e, idx)}
                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
                       />
                     </td>
@@ -277,6 +316,58 @@ export default function ClinicStockTransfer() {
           </button>
         </div>
       </form>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/80 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">Confirm Clinic Stock Transfer</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Are you sure you want to transfer stock to clinic outlet?</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Source Sub-Branch:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedFromObj?.name || 'Source Sub-Branch'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Destination Clinic Outlet:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedToObj?.name || 'Destination Clinic'}</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-slate-400 font-semibold">Total Stock Line Items:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                  {lineItems.length} Batch Line(s)
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeSubmit}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Yes, Dispatch Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

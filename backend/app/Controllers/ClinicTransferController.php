@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/../../core/Controller.php';
+require_once __DIR__ . '/../../core/Model.php';
+require_once __DIR__ . '/../../core/AuditLogger.php';
+require_once __DIR__ . '/../../core/UrlSecurity.php';
 require_once __DIR__ . '/../Services/InventoryLedgerService.php';
 
 class ClinicTransferController extends Controller {
@@ -8,15 +11,20 @@ class ClinicTransferController extends Controller {
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
-        if (empty($body['from_location_id']) || empty($body['to_location_id']) || empty($body['items']) || !is_array($body['items'])) {
-            $this->error('Missing parameters for clinic stock transfer.', 400);
-        }
+        $rawFromLoc = UrlSecurity::decrypt($body['from_location_id'] ?? null);
+        $fromLoc = !empty($rawFromLoc) ? (int)$rawFromLoc : (int)($body['raw_from_location_id'] ?? $body['from_location_id'] ?? 0);
 
-        $fromLoc = (int)$body['from_location_id'];
-        $toLoc = (int)$body['to_location_id'];
+        $rawToLoc = UrlSecurity::decrypt($body['to_location_id'] ?? null);
+        $toLoc = !empty($rawToLoc) ? (int)$rawToLoc : (int)($body['raw_to_location_id'] ?? $body['to_location_id'] ?? 0);
+
+        if (!$fromLoc || !$toLoc || empty($body['items']) || !is_array($body['items'])) {
+            $this->error('Missing parameters or destination clinic location.', 400);
+            return;
+        }
 
         if ($fromLoc === $toLoc) {
             $this->error('Source and destination locations cannot be identical.', 400);
+            return;
         }
 
         $pdo = Model::getDB();
@@ -44,10 +52,20 @@ class ClinicTransferController extends Controller {
                 (`transfer_id`, `item_id`, `batch_id`, `qty`, `unit_price`, `subtotal`)
                 VALUES (?, ?, ?, ?, 0.00, 0.00)");
 
-            foreach ($body['items'] as $line) {
-                $itemId = (int)$line['item_id'];
-                $batchId = (int)$line['batch_id'];
-                $qty = (int)$line['qty'];
+            foreach ($body['items'] as $idx => $line) {
+                $rawItemId = UrlSecurity::decrypt($line['item_id'] ?? null);
+                $itemId = !empty($rawItemId) ? (int)$rawItemId : (int)($line['raw_item_id'] ?? $line['item_id'] ?? 0);
+
+                $rawBatchId = UrlSecurity::decrypt($line['batch_id'] ?? null);
+                $batchId = !empty($rawBatchId) ? (int)$rawBatchId : (int)($line['raw_batch_id'] ?? $line['batch_id'] ?? 0);
+
+                $qty = (int)($line['qty'] ?? 0);
+
+                if (!$itemId || !$batchId || $qty <= 0) {
+                    Model::rollBack();
+                    $this->error("Batch line #" . ($idx + 1) . " requires a valid batch selection and transfer quantity greater than 0.", 400);
+                    return;
+                }
 
                 $stmtItem->execute([
                     $transferId,
