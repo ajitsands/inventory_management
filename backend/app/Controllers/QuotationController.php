@@ -32,7 +32,12 @@ class QuotationController extends Controller
             $q['id'] = UrlSecurity::encrypt($q['id']);
             $q['vendor_id'] = UrlSecurity::encrypt($q['vendor_id']);
             $stmtItems->execute([$rawId]);
-            $q['items'] = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+            $itemsList = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($itemsList as &$it) {
+                $it['raw_item_id'] = (int)$it['item_id'];
+                $it['item_id'] = UrlSecurity::encrypt($it['item_id']);
+            }
+            $q['items'] = $itemsList;
         }
 
         $this->json(['success' => true, 'quotations' => $quotations]);
@@ -70,7 +75,12 @@ class QuotationController extends Controller
             $q['raw_id'] = $rawId;
             $q['id'] = UrlSecurity::encrypt($q['id']);
             $stmtItems->execute([$rawId]);
-            $q['items'] = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+            $itemsList = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($itemsList as &$it) {
+                $it['raw_item_id'] = (int)$it['item_id'];
+                $it['item_id'] = UrlSecurity::encrypt($it['item_id']);
+            }
+            $q['items'] = $itemsList;
         }
 
         $this->json(['success' => true, 'quotations' => $quotations]);

@@ -149,7 +149,7 @@ export default function StoreSettings() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Store Timezone (Select2 Search) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Store Timezone *</label>
             <SearchableSelect
               options={[
                 { value: 'Asia/Bahrain', label: 'Asia/Bahrain (Kingdom of Bahrain GMT+3)' },
@@ -167,7 +167,7 @@ export default function StoreSettings() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Date Display Format (Select2 Search) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Date Display Format *</label>
             <SearchableSelect
               options={[
                 { value: 'DD/MM/YYYY', label: `DD/MM/YYYY (e.g. ${formatDate(sampleToday, 'DD/MM/YYYY')})` },

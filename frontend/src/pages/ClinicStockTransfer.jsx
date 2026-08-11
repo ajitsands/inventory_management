@@ -168,7 +168,7 @@ export default function ClinicStockTransfer() {
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch (Select2 Search) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch *</label>
             <SearchableSelect
               placeholder="Search Sub-Branch..."
               options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})`, sublabel: sb.type }))}
@@ -178,7 +178,7 @@ export default function ClinicStockTransfer() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Clinic Outlet (Select2 Search) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Clinic Outlet *</label>
             <SearchableSelect
               placeholder="Search Clinic..."
               options={clinics.map(c => ({ value: c.id, label: `${c.name} (${c.code})`, sublabel: c.type }))}

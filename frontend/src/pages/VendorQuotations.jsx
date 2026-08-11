@@ -352,7 +352,7 @@ export default function VendorQuotations() {
                 <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <th className="p-3.5 w-1/2">Item Master (Select2 Search) *</th>
+                      <th className="p-3.5 w-1/2">Item Master *</th>
                       <th className="p-3.5 w-32">Ordered Qty *</th>
                       <th className="p-3.5 w-36">Unit Price ({currencyCode}) *</th>
                       <th className="p-3.5 w-36 text-right">Subtotal ({currencyCode})</th>

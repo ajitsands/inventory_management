@@ -196,7 +196,7 @@ export default function UserManagement() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Role (Select2 Search) *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Role *</label>
             <SearchableSelect
               options={[
                 { value: 'ADMIN', label: 'ADMIN (Full Access)' },
@@ -210,7 +210,7 @@ export default function UserManagement() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Location Context (Select2 Search)</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Location Context</label>
             <SearchableSelect
               placeholder="Global System Access"
               options={locations.map(l => ({ value: l.id, label: l.name, sublabel: l.type }))}
