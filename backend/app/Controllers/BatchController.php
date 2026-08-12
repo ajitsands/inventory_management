@@ -10,17 +10,22 @@ class BatchController extends Controller {
 
     public function getStockByLocation() {
         $this->requireAuth();
-        $locationId = $_GET['location_id'] ?? $_GET['raw_location_id'] ?? 1;
-        
-        if (is_string($locationId) && (strpos($locationId, 'enc_') === 0 || strpos($locationId, 'enc ') === 0)) {
-            $formattedToken = str_replace(' ', '+', $locationId);
-            $decrypted = UrlSecurity::decrypt($formattedToken);
-            if ($decrypted !== null && $decrypted !== false && $decrypted !== '') {
-                $locationId = $decrypted;
+        $rawLocId = $_GET['raw_location_id'] ?? null;
+        $locationId = $_GET['location_id'] ?? null;
+
+        $targetLocId = 0;
+        if (!empty($rawLocId) && is_numeric($rawLocId)) {
+            $targetLocId = (int)$rawLocId;
+        } elseif (!empty($locationId)) {
+            if (is_numeric($locationId)) {
+                $targetLocId = (int)$locationId;
+            } else {
+                $formattedToken = str_replace(' ', '+', $locationId);
+                $decrypted = UrlSecurity::decrypt($formattedToken);
+                $targetLocId = (!empty($decrypted) && is_numeric($decrypted)) ? (int)$decrypted : (int)$locationId;
             }
         }
 
-        $targetLocId = (int)$locationId;
         if ($targetLocId <= 0) $targetLocId = 1;
 
         $batches = ItemBatch::getBatchesByLocation($targetLocId);

@@ -118,35 +118,40 @@ export default function StockReturns() {
     setLineItems([createEmptyLine()]);
 
     if (type === 'CLINIC_TO_BRANCH') {
-      const sourceClinic = clinics[0]?.id || '';
+      const sourceClinicObj = clinics[0];
+      const sourceClinic = sourceClinicObj?.id || '';
       const destBranch = subBranches[0]?.id || '';
       setFromLocationId(sourceClinic);
       setToLocationId(destBranch);
       setVendorId('');
-      if (sourceClinic) fetchStockBySourceLocation(sourceClinic);
+      if (sourceClinic) fetchStockBySourceLocation(sourceClinic, sourceClinicObj?.raw_id);
     } else if (type === 'BRANCH_TO_MAIN') {
-      const sourceBranch = subBranches[0]?.id || '';
+      const sourceBranchObj = subBranches[0];
+      const sourceBranch = sourceBranchObj?.id || '';
       setFromLocationId(sourceBranch);
       setToLocationId(1); // Main Warehouse ID
       setVendorId('');
-      if (sourceBranch) fetchStockBySourceLocation(sourceBranch);
+      if (sourceBranch) fetchStockBySourceLocation(sourceBranch, sourceBranchObj?.raw_id);
     } else if (type === 'MAIN_TO_VENDOR') {
       setFromLocationId(1); // Main Warehouse ID
       setToLocationId('');
       setVendorId(vendors[0]?.id || '');
-      fetchStockBySourceLocation(1);
+      fetchStockBySourceLocation(1, 1);
     }
   };
 
-  const fetchStockBySourceLocation = async (locId) => {
-    if (!locId) {
+  const fetchStockBySourceLocation = async (locId, rawLocId) => {
+    if (!locId && !rawLocId) {
       setAvailableStock([]);
       setLineItems([createEmptyLine()]);
       return;
     }
     try {
-      const encodedId = encodeURIComponent(locId);
-      const res = await apiFetch(`/stock/location?location_id=${encodedId}`);
+      const allLocs = [...subBranches, ...clinics, { id: 1, raw_id: 1 }];
+      const matched = allLocs.find(l => l.id === locId || l.raw_id == locId || l.id === rawLocId);
+      const rId = rawLocId || matched?.raw_id || locId;
+      const encodedId = encodeURIComponent(locId || rId);
+      const res = await apiFetch(`/stock/location?location_id=${encodedId}&raw_location_id=${rId}`);
       const stock = res.batches || [];
       setAvailableStock(stock);
       setLineItems([createEmptyLine()]);
@@ -157,7 +162,9 @@ export default function StockReturns() {
 
   const handleSourceLocationChange = (val) => {
     setFromLocationId(val);
-    fetchStockBySourceLocation(val);
+    const allLocs = [...subBranches, ...clinics, { id: 1, raw_id: 1 }];
+    const matched = allLocs.find(l => l.id === val || l.raw_id == val);
+    fetchStockBySourceLocation(val, matched?.raw_id);
   };
 
   const handleLineChange = (index, field, value) => {
