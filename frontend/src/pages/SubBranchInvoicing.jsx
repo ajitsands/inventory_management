@@ -1355,7 +1355,7 @@ export default function SubBranchInvoicing() {
                       Branch Ledger Trajectory: {selectedBranchObj ? `${selectedBranchObj.name} (${selectedBranchObj.code})` : 'All Sub-Branches'}
                     </h3>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete audit of all financial invoices, payment collections (Cash/Bank/Cheque) & stock ledger movements for this branch</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete audit of financial invoices, payment collections (Cash/Bank/Cheque) & stock ledger movements with Carry Forward Balance</p>
                 </div>
               </div>
 
@@ -1367,31 +1367,97 @@ export default function SubBranchInvoicing() {
               </button>
             </div>
 
+            {/* Modal Date Range Filter Toolbar */}
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+                  <Calendar className="w-4 h-4 text-brand-blue" />
+                  <span>Ledger Date Range:</span>
+                </div>
+                <input
+                  type="date"
+                  value={startDateFilter}
+                  onChange={(e) => setStartDateFilter(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                />
+                <span className="text-slate-400 font-bold">to</span>
+                <input
+                  type="date"
+                  value={endDateFilter}
+                  onChange={(e) => setEndDateFilter(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePresetThisMonth}
+                  className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                    startDateFilter === getFirstDayOfCurrentMonth() && endDateFilter === getLastDayOfCurrentMonth()
+                      ? 'bg-brand-blue text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  This Month (Default)
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePresetLastMonth}
+                  className="px-3 py-1 rounded-xl text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                >
+                  Last Month
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePresetAllTime}
+                  className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                    !startDateFilter && !endDateFilter
+                      ? 'bg-brand-blue text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  All Time
+                </button>
+              </div>
+            </div>
+
             {/* Branch Summary Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
-              <div>
-                <span className="text-slate-400 block text-[11px]">Total Branch Invoiced</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm font-mono mt-0.5 block">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+              <div className="bg-amber-50/70 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-800/70 space-y-0.5">
+                <span className="text-amber-700 dark:text-amber-400 block text-[11px] font-bold uppercase tracking-wider">Carry Forward Opening</span>
+                <span className="font-bold text-amber-800 dark:text-amber-300 text-sm font-mono block font-heading">
+                  {formatCurrency(carryForwardMetrics.totalPending, currencyCode, decimalPlaces)}
+                </span>
+                <span className="text-[10px] text-amber-600/80 font-semibold truncate block">Prior to {startDateFilter ? formatDate(startDateFilter, dateFormat) : 'Beginning'}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-0.5">
+                <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Period Invoiced</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm font-mono block">
                   {formatCurrency(summaryMetrics.totalGrand, currencyCode, decimalPlaces)}
                 </span>
+                <span className="text-[10px] text-slate-500 font-medium block">{filteredTransfers.length} invoice(s)</span>
               </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Total Payments Collected</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono mt-0.5 block">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-0.5">
+                <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Period Payments</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono block">
                   {formatCurrency(summaryMetrics.totalPaid, currencyCode, decimalPlaces)}
                 </span>
+                <span className="text-[10px] text-emerald-600/80 font-semibold block">Collected in range</span>
               </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Outstanding Receivables</span>
-                <span className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono mt-0.5 block">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-0.5">
+                <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Period Pending</span>
+                <span className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono block">
                   {formatCurrency(summaryMetrics.totalPending, currencyCode, decimalPlaces)}
                 </span>
+                <span className="text-[10px] text-rose-500/80 font-semibold block">Unpaid in range</span>
               </div>
-              <div>
-                <span className="text-slate-400 block text-[11px]">Total Invoices Count</span>
-                <span className="font-bold text-brand-blue text-sm font-mono mt-0.5 block">
-                  {filteredTransfers.length} Transaction(s)
+              <div className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40 p-3 rounded-xl border border-rose-200 dark:border-rose-800/80 space-y-0.5">
+                <span className="text-rose-700 dark:text-rose-400 block text-[11px] font-extrabold uppercase tracking-wider">Net Total Outstanding</span>
+                <span className="font-black text-rose-700 dark:text-rose-300 text-sm font-mono block font-heading">
+                  {formatCurrency(netTotalOutstanding, currencyCode, decimalPlaces)}
                 </span>
+                <span className="text-[10px] text-rose-700/80 dark:text-rose-300/80 font-bold block">Carry Forward + Period</span>
               </div>
             </div>
 
@@ -1550,13 +1616,13 @@ export default function SubBranchInvoicing() {
                           </td>
                           <td className="p-3 text-center font-extrabold font-mono text-slate-900 dark:text-slate-100">{mov.qty}</td>
                           <td className="p-3 text-right font-mono font-bold">{formatCurrency(mov.unit_price, currencyCode, decimalPlaces)}</td>
-                          <td className="p-3 font-mono text-slate-400 text-[10px]">{formatDate(mov.timestamp)}</td>
+                          <td className="p-3 font-mono text-slate-400 text-[10px]">{formatDate(mov.timestamp, dateFormat)}</td>
                         </tr>
                       ))}
                       {filteredTransfers.flatMap(tr => tr.ledger_movements || []).length === 0 && (
                         <tr>
                           <td colSpan={7} className="p-4 text-center text-slate-400 text-xs">
-                            No stock movement trajectory logs found for this branch.
+                            No stock movement trajectory logs found for this branch in selected period.
                           </td>
                         </tr>
                       )}
