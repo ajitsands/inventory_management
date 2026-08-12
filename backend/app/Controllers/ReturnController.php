@@ -561,6 +561,306 @@ class ReturnController extends Controller
     }
 
     /**
+     * Accept BRANCH_TO_MAIN return & Return Stock to Original Vendor
+     * - Accepts return from Branch into Main Store
+     * - Auto-identifies vendor from item_batches.vendor_id
+     * - Creates MAIN_TO_VENDOR return record
+     * - Issues Credit Note to originating Branch
+     * - Debits stock from Main Store ledger (STOCK_RETURN_VENDOR)
+     */
+    public function acceptAndReturnToVendor()
+    {
+        $user = $this->requireRoles(['ADMIN']);
+        $body = $this->getRequestBody();
+
+        $rawReturnId = (int)($body['raw_return_id'] ?? UrlSecurity::decrypt($body['return_id'] ?? null) ?? $body['return_id'] ?? 0);
+        $notes = trim($body['notes'] ?? 'Vendor return from accepted Branch return');
+
+        if (!$rawReturnId) {
+            $this->error('Return ID is required.', 400);
+            return;
+        }
+
+        $pdo = Model::getDB();
+
+        try {
+            Model::beginTransaction();
+
+            $stmtRet = $pdo->prepare("SELECT * FROM `stock_returns` WHERE id = ? FOR UPDATE");
+            $stmtRet->execute([$rawReturnId]);
+            $returnRow = $stmtRet->fetch(PDO::FETCH_ASSOC);
+
+            if (!$returnRow) {
+                throw new \Exception('Stock Return record not found.');
+            }
+            if ($returnRow['status'] !== 'PENDING_ACCEPTANCE') {
+                throw new \Exception('This return request has already been processed.');
+            }
+            if ($returnRow['return_type'] !== 'BRANCH_TO_MAIN') {
+                throw new \Exception('This action is only valid for Branch to Main Store returns.');
+            }
+
+            $fromLocId = (int)$returnRow['from_location_id']; // Branch
+            $toLocId   = (int)$returnRow['to_location_id'];   // Main Store
+
+            $stmtItems = $pdo->prepare("SELECT * FROM `stock_return_items` WHERE return_id = ?");
+            $stmtItems->execute([$rawReturnId]);
+            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+            $creditNoteItems = [];
+            $totalCreditAmt  = 0.0;
+
+            // Create a single vendor return ref
+            $vendorReturnRef = SequenceService::generateNextNumber('stock_return');
+
+            // Group items by vendor
+            $vendorId = null;
+
+            foreach ($items as $item) {
+                $rawItemId  = (int)$item['item_id'];
+                $rawBatchId = (int)$item['batch_id'];
+                $qty = (int)($item['quantity'] ?: $item['qty']);
+                $unitRate = (float)($item['unit_rate'] ?: $item['unit_price']);
+                $totalAmt = $qty * $unitRate;
+
+                // Get batch info (purchase_price, selling_price, vendor_id)
+                $stmtBatch = $pdo->prepare("SELECT * FROM `item_batches` WHERE id = ?");
+                $stmtBatch->execute([$rawBatchId]);
+                $batchRow = $stmtBatch->fetch(PDO::FETCH_ASSOC);
+
+                if (!$batchRow) {
+                    throw new \Exception("Batch ID {$rawBatchId} not found.");
+                }
+
+                // Auto-detect vendor from batch
+                if ($batchRow['vendor_id']) {
+                    $vendorId = (int)$batchRow['vendor_id'];
+                }
+
+                // 1. Credit stock into Main Store (Accept)
+                InventoryLedgerService::creditStock($toLocId, $rawBatchId, $qty);
+                InventoryLedgerService::recordMovement(
+                    'STOCK_RETURN_IN',
+                    $returnRow['return_reference'] ?? $returnRow['return_no'],
+                    $rawItemId, $rawBatchId, $fromLocId, $toLocId, $qty,
+                    (float)$batchRow['purchase_price'], (float)$batchRow['selling_price'],
+                    $user['user_id']
+                );
+
+                // 2. Immediately Debit stock from Main Store → Vendor
+                InventoryLedgerService::debitStock($toLocId, $rawBatchId, $qty);
+                InventoryLedgerService::recordMovement(
+                    'STOCK_RETURN_VENDOR',
+                    $vendorReturnRef,
+                    $rawItemId, $rawBatchId, $toLocId, null, $qty,
+                    (float)$batchRow['purchase_price'], (float)$batchRow['selling_price'],
+                    $user['user_id']
+                );
+
+                // Update original return item status
+                $pdo->prepare("UPDATE `stock_return_items` SET `accepted_qty` = ?, `status` = 'ACCEPTED' WHERE id = ?")
+                    ->execute([$qty, $item['id']]);
+                $pdo->prepare("UPDATE `stock_return_wallets` SET `status` = 'ACCEPTED' WHERE return_item_id = ?")
+                    ->execute([$item['id']]);
+
+                $creditNoteItems[] = array_merge($item, ['quantity' => $qty, 'unit_rate' => $unitRate, 'total_amount' => $totalAmt, 'batch_code' => $batchRow['batch_code']]);
+                $totalCreditAmt += $totalAmt;
+            }
+
+            // Insert MAIN_TO_VENDOR return record
+            $stmtVendorRet = $pdo->prepare("INSERT INTO `stock_returns`
+                (`return_no`, `return_reference`, `return_type`, `from_location_id`, `to_location_id`, `vendor_id`,
+                 `return_reason`, `reason`, `notes`, `status`, `created_by`, `created_at`)
+                VALUES (?, ?, 'MAIN_TO_VENDOR', ?, NULL, ?, 'OTHER', ?, ?, 'ACCEPTED', ?, NOW())");
+            $stmtVendorRet->execute([$vendorReturnRef, $vendorReturnRef, $toLocId, $vendorId, $notes, $notes, $user['user_id']]);
+            $vendorReturnId = (int)$pdo->lastInsertId();
+
+            $stmtVRI = $pdo->prepare("INSERT INTO `stock_return_items`
+                (`return_id`, `item_id`, `batch_id`, `batch_code`, `qty`, `quantity`, `unit_price`, `unit_rate`, `subtotal`, `total_amount`, `status`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED')");
+            foreach ($creditNoteItems as $ci) {
+                $stmtVRI->execute([$vendorReturnId, $ci['item_id'], $ci['batch_id'], $ci['batch_code'], $ci['quantity'], $ci['quantity'], $ci['unit_rate'], $ci['unit_rate'], $ci['total_amount'], $ci['total_amount']]);
+            }
+
+            // Generate Credit Note to Branch
+            $creditNoteNo = SequenceService::generateNextNumber('credit_note');
+            $stmtCN = $pdo->prepare("INSERT INTO `credit_notes`
+                (`credit_note_no`, `return_id`, `branch_location_id`, `original_transfer_no`, `total_amount`, `reason`, `created_by`, `created_at`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmtCN->execute([$creditNoteNo, $rawReturnId, $fromLocId, $returnRow['original_transfer_no'], $totalCreditAmt, "Accepted & Returned to Vendor ({$vendorReturnRef})", $user['user_id']]);
+            $creditNoteId = (int)$pdo->lastInsertId();
+
+            $stmtCNI = $pdo->prepare("INSERT INTO `credit_note_items`
+                (`credit_note_id`, `item_id`, `batch_id`, `batch_code`, `quantity`, `unit_rate`, `total_amount`)
+                VALUES (?, ?, ?, ?, ?, ?, ?)");
+            foreach ($creditNoteItems as $ci) {
+                $stmtCNI->execute([$creditNoteId, $ci['item_id'], $ci['batch_id'], $ci['batch_code'], $ci['quantity'], $ci['unit_rate'], $ci['total_amount']]);
+            }
+
+            // Mark original return accepted
+            $pdo->prepare("UPDATE `stock_returns` SET `status` = 'ACCEPTED', `action_by` = ?, `action_at` = NOW() WHERE id = ?")
+                ->execute([$user['user_id'], $rawReturnId]);
+
+            Model::commit();
+
+            AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'STOCK_RETURN', 'ACCEPT_RETURN_TO_VENDOR', null, [
+                'return_id'        => $rawReturnId,
+                'vendor_return_ref'=> $vendorReturnRef,
+                'credit_note_no'   => $creditNoteNo
+            ], $toLocId);
+
+            $this->json([
+                'success'        => true,
+                'message'        => "Return accepted and forwarded to Vendor as {$vendorReturnRef}. Credit Note {$creditNoteNo} issued to Branch.",
+                'credit_note_no' => $creditNoteNo
+            ]);
+
+        } catch (\Exception $e) {
+            Model::rollBack();
+            $this->error('Failed to accept and return to vendor: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Accept BRANCH_TO_MAIN return & Move Stock to Damaged Stock
+     * - Accepts return from Branch into Main Store
+     * - Moves items to damaged_stock
+     * - Issues Credit Note to originating Branch
+     * - Debits stock from Main Store ledger (STOCK_DAMAGED)
+     */
+    public function acceptAndMoveToDamaged()
+    {
+        $user = $this->requireRoles(['ADMIN']);
+        $body = $this->getRequestBody();
+
+        $rawReturnId = (int)($body['raw_return_id'] ?? UrlSecurity::decrypt($body['return_id'] ?? null) ?? $body['return_id'] ?? 0);
+        $damageReason = trim($body['damage_reason'] ?? 'Damaged / Unserviceable stock');
+
+        if (!$rawReturnId) {
+            $this->error('Return ID is required.', 400);
+            return;
+        }
+
+        $pdo = Model::getDB();
+
+        try {
+            Model::beginTransaction();
+
+            $stmtRet = $pdo->prepare("SELECT * FROM `stock_returns` WHERE id = ? FOR UPDATE");
+            $stmtRet->execute([$rawReturnId]);
+            $returnRow = $stmtRet->fetch(PDO::FETCH_ASSOC);
+
+            if (!$returnRow) {
+                throw new \Exception('Stock Return record not found.');
+            }
+            if ($returnRow['status'] !== 'PENDING_ACCEPTANCE') {
+                throw new \Exception('This return request has already been processed.');
+            }
+            if ($returnRow['return_type'] !== 'BRANCH_TO_MAIN') {
+                throw new \Exception('This action is only valid for Branch to Main Store returns.');
+            }
+
+            $fromLocId = (int)$returnRow['from_location_id']; // Branch
+            $toLocId   = (int)$returnRow['to_location_id'];   // Main Store
+
+            $stmtItems = $pdo->prepare("SELECT * FROM `stock_return_items` WHERE return_id = ?");
+            $stmtItems->execute([$rawReturnId]);
+            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+            $creditNoteItems = [];
+            $totalCreditAmt  = 0.0;
+
+            foreach ($items as $item) {
+                $rawItemId  = (int)$item['item_id'];
+                $rawBatchId = (int)$item['batch_id'];
+                $qty = (int)($item['quantity'] ?: $item['qty']);
+                $unitRate = (float)($item['unit_rate'] ?: $item['unit_price']);
+                $totalAmt = $qty * $unitRate;
+
+                $stmtBatch = $pdo->prepare("SELECT * FROM `item_batches` WHERE id = ?");
+                $stmtBatch->execute([$rawBatchId]);
+                $batchRow = $stmtBatch->fetch(PDO::FETCH_ASSOC);
+
+                if (!$batchRow) {
+                    throw new \Exception("Batch ID {$rawBatchId} not found.");
+                }
+
+                // 1. Credit stock into Main Store (Accept)
+                InventoryLedgerService::creditStock($toLocId, $rawBatchId, $qty);
+                InventoryLedgerService::recordMovement(
+                    'STOCK_RETURN_IN',
+                    $returnRow['return_reference'] ?? $returnRow['return_no'],
+                    $rawItemId, $rawBatchId, $fromLocId, $toLocId, $qty,
+                    (float)$batchRow['purchase_price'], (float)$batchRow['selling_price'],
+                    $user['user_id']
+                );
+
+                // 2. Debit from Main Store → Damaged
+                InventoryLedgerService::debitStock($toLocId, $rawBatchId, $qty);
+                InventoryLedgerService::recordMovement(
+                    'STOCK_DAMAGED',
+                    $returnRow['return_reference'] ?? $returnRow['return_no'],
+                    $rawItemId, $rawBatchId, $toLocId, null, $qty,
+                    (float)$batchRow['purchase_price'], (float)$batchRow['selling_price'],
+                    $user['user_id']
+                );
+
+                // 3. Insert into damaged_stock
+                $pdo->prepare("INSERT INTO `damaged_stock`
+                    (`return_id`, `return_item_id`, `location_id`, `item_id`, `batch_id`, `batch_code`, `quantity`, `reason`, `created_at`)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())")
+                    ->execute([$rawReturnId, $item['id'], $toLocId, $rawItemId, $rawBatchId, $batchRow['batch_code'], $qty, $damageReason]);
+
+                // Update original return item status
+                $pdo->prepare("UPDATE `stock_return_items` SET `accepted_qty` = ?, `status` = 'ACCEPTED' WHERE id = ?")
+                    ->execute([$qty, $item['id']]);
+                $pdo->prepare("UPDATE `stock_return_wallets` SET `status` = 'ACCEPTED' WHERE return_item_id = ?")
+                    ->execute([$item['id']]);
+
+                $creditNoteItems[] = array_merge($item, ['quantity' => $qty, 'unit_rate' => $unitRate, 'total_amount' => $totalAmt, 'batch_code' => $batchRow['batch_code']]);
+                $totalCreditAmt += $totalAmt;
+            }
+
+            // Generate Credit Note to Branch
+            $creditNoteNo = SequenceService::generateNextNumber('credit_note');
+            $stmtCN = $pdo->prepare("INSERT INTO `credit_notes`
+                (`credit_note_no`, `return_id`, `branch_location_id`, `original_transfer_no`, `total_amount`, `reason`, `created_by`, `created_at`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmtCN->execute([$creditNoteNo, $rawReturnId, $fromLocId, $returnRow['original_transfer_no'], $totalCreditAmt, "Accepted & Moved to Damaged Stock — {$damageReason}", $user['user_id']]);
+            $creditNoteId = (int)$pdo->lastInsertId();
+
+            $stmtCNI = $pdo->prepare("INSERT INTO `credit_note_items`
+                (`credit_note_id`, `item_id`, `batch_id`, `batch_code`, `quantity`, `unit_rate`, `total_amount`)
+                VALUES (?, ?, ?, ?, ?, ?, ?)");
+            foreach ($creditNoteItems as $ci) {
+                $stmtCNI->execute([$creditNoteId, $ci['item_id'], $ci['batch_id'], $ci['batch_code'], $ci['quantity'], $ci['unit_rate'], $ci['total_amount']]);
+            }
+
+            // Mark original return accepted
+            $pdo->prepare("UPDATE `stock_returns` SET `status` = 'ACCEPTED', `action_by` = ?, `action_at` = NOW() WHERE id = ?")
+                ->execute([$user['user_id'], $rawReturnId]);
+
+            Model::commit();
+
+            AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'STOCK_RETURN', 'ACCEPT_MOVE_TO_DAMAGED', null, [
+                'return_id'      => $rawReturnId,
+                'return_ref'     => $returnRow['return_reference'] ?? $returnRow['return_no'],
+                'credit_note_no' => $creditNoteNo
+            ], $toLocId);
+
+            $this->json([
+                'success'        => true,
+                'message'        => "Stock accepted and moved to Damaged Stock. Credit Note {$creditNoteNo} issued to Branch.",
+                'credit_note_no' => $creditNoteNo
+            ]);
+
+        } catch (\Exception $e) {
+            Model::rollBack();
+            $this->error('Failed to accept and move to damaged stock: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Reject Pending Return Request
      * - Clinic -> Branch rejection: Moves stock to Clinic Return Reject Wallet
      * - Branch -> Main Store rejection: Moves stock to Damaged Stock & generates Credit Note against Branch

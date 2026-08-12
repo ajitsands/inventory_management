@@ -27,7 +27,9 @@ import {
   FileCheck,
   ArrowUpRight,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  Truck,
+  Skull
 } from 'lucide-react';
 
 const RETURN_REASON_OPTIONS = [
@@ -94,6 +96,9 @@ export default function StockReturns() {
   const [selectedReturnDetail, setSelectedReturnDetail] = useState(null);
   const [selectedCreditNoteDetail, setSelectedCreditNoteDetail] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, icon: null, confirmText: 'Confirm', confirmStyle: 'bg-brand-blue hover:bg-brand-blue/90' });
+  const [showDamageModal, setShowDamageModal] = useState(false);
+  const [damageReasonInput, setDamageReasonInput] = useState('');
+  const [pendingDamageReturn, setPendingDamageReturn] = useState(null);
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
@@ -455,6 +460,66 @@ export default function StockReturns() {
     });
   };
 
+  const handleAcceptAndReturnToVendor = async (ret) => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/returns/accept-return-to-vendor', {
+        method: 'POST',
+        body: JSON.stringify({ return_id: ret.id, raw_return_id: ret.raw_id })
+      });
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+        loadData();
+      } else {
+        setMessage({ type: 'error', text: res.message || 'Failed to return to vendor' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to return to vendor' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAcceptAndMoveToDamaged = async (ret, reason) => {
+    setShowDamageModal(false);
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/returns/accept-move-to-damaged', {
+        method: 'POST',
+        body: JSON.stringify({ return_id: ret.id, raw_return_id: ret.raw_id, damage_reason: reason })
+      });
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+        loadData();
+      } else {
+        setMessage({ type: 'error', text: res.message || 'Failed to move to damaged stock' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to move to damaged stock' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const requestAcceptAndReturnToVendor = (ret) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Accept & Return to Vendor (${ret.return_reference})`,
+      message: `The system will auto-identify the original vendor from each item batch and return the stock. A Credit Note will be issued to the Branch. Proceed?`,
+      icon: <Truck className="w-5 h-5 text-amber-600" />,
+      confirmText: 'Accept & Return to Vendor',
+      confirmStyle: 'bg-amber-600 hover:bg-amber-700',
+      onConfirm: () => handleAcceptAndReturnToVendor(ret)
+    });
+  };
+
+  const requestAcceptAndMoveToDamaged = (ret) => {
+    setPendingDamageReturn(ret);
+    setDamageReasonInput('');
+    setShowDamageModal(true);
+  };
+
   // Selected Batch Information
   const selectedBatchObj = eligibleItems.find(b => b.id === selectedBatchId || b.raw_id == selectedBatchId);
 
@@ -518,6 +583,28 @@ export default function StockReturns() {
               <ArrowRight className="w-3.5 h-3.5" />
               Accept & Forward to Main Store
             </button>
+          )}
+          {isAdmin && r.return_type === 'BRANCH_TO_MAIN' && (
+            <>
+              <button
+                type="button"
+                onClick={() => requestAcceptAndReturnToVendor(r)}
+                disabled={submitting}
+                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-2xs"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                Accept & Return to Vendor
+              </button>
+              <button
+                type="button"
+                onClick={() => requestAcceptAndMoveToDamaged(r)}
+                disabled={submitting}
+                className="px-2.5 py-1 rounded-lg bg-rose-800 hover:bg-rose-900 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-2xs"
+              >
+                <Skull className="w-3.5 h-3.5" />
+                Move to Damaged Stock
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -1402,6 +1489,66 @@ export default function StockReturns() {
                   <span className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"></span>
                 ) : (
                   confirmModal.confirmText
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Damage Reason Modal */}
+      {showDamageModal && pendingDamageReturn && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                <Skull className="w-5 h-5 text-rose-700" />
+                Accept & Move to Damaged Stock ({pendingDamageReturn.return_reference})
+              </h3>
+              <button type="button" onClick={() => setShowDamageModal(false)} className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/50 text-xs text-rose-800 dark:text-rose-300 space-y-1">
+              <p><strong>Action:</strong> This will accept the stock from Branch into Main Store, then immediately move it to the Damaged Stock ledger.</p>
+              <p><strong>Credit Note</strong> will be issued automatically to <strong>{pendingDamageReturn.from_location_name}</strong>.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Damage Reason <span className="text-rose-500">*</span></label>
+              <textarea
+                value={damageReasonInput}
+                onChange={e => setDamageReasonInput(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
+                rows={3}
+                placeholder="e.g. Items found damaged during receipt inspection..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => setShowDamageModal(false)} className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all hover:bg-slate-200" disabled={submitting}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!damageReasonInput.trim()) {
+                    setMessage({ type: 'error', text: 'Please enter a damage reason.' });
+                    return;
+                  }
+                  handleAcceptAndMoveToDamaged(pendingDamageReturn, damageReasonInput.trim());
+                }}
+                disabled={submitting}
+                className="px-5 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center min-w-[140px]"
+              >
+                {submitting ? (
+                  <span className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"></span>
+                ) : (
+                  <>
+                    <Skull className="w-3.5 h-3.5 mr-1.5" />
+                    Move to Damaged Stock
+                  </>
                 )}
               </button>
             </div>
