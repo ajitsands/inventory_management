@@ -50,7 +50,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
   const canSeeReports = ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'].includes(role);
 
   return (
-    <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-20 z-30 shadow-xs transition-colors duration-200 overflow-visible">
+    <nav className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 sticky top-20 z-30 shadow-md shadow-slate-200/60 dark:shadow-slate-950/60 transition-colors duration-200 overflow-visible">
       <div className="w-full px-6 flex items-center space-x-1 py-2 overflow-visible relative">
         
         {/* 1. Dashboard */}
