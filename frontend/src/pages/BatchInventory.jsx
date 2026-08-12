@@ -18,7 +18,21 @@ export default function BatchInventory() {
     setLoading(true);
     try {
       const data = await apiFetch(`/stock/location?location_id=${encodeURIComponent(locId)}`);
-      setBatches(data.batches || []);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const processed = (data.batches || []).map(b => {
+        if (b.expiry_date) {
+          const exp = new Date(b.expiry_date);
+          exp.setHours(0, 0, 0, 0);
+          b.days_to_expire = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+        } else {
+          b.days_to_expire = 99999;
+        }
+        return b;
+      });
+
+      setBatches(processed);
     } catch (err) {
       console.error(err);
       setBatches([]);
@@ -55,6 +69,7 @@ export default function BatchInventory() {
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
+  const dateFormat = settings.date_format || 'DD/MM/YYYY';
 
   const handleLocationChange = (locId) => {
     setSelectedLocation(locId);
@@ -101,14 +116,49 @@ export default function BatchInventory() {
       header: 'Expiry Date',
       accessor: 'expiry_date',
       render: (b) => {
-        const isExpiringSoon = new Date(b.expiry_date) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+        const isExpiringSoon = (b.days_to_expire !== undefined ? b.days_to_expire <= 90 : false);
         return (
-          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-            isExpiringSoon ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40' : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300'
+          <span className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold ${
+            isExpiringSoon ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40' : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
           }`}>
-            {formatDate(b.expiry_date)}
+            {formatDate(b.expiry_date, dateFormat)}
           </span>
         );
+      }
+    },
+    {
+      header: 'Days to Expire (Age)',
+      accessor: 'days_to_expire',
+      render: (b) => {
+        const diffDays = b.days_to_expire;
+        if (diffDays === undefined || diffDays === 99999) return <span className="text-slate-400 font-mono text-[11px]">-</span>;
+
+        if (diffDays < 0) {
+          const pastDays = Math.abs(diffDays);
+          return (
+            <span className="px-2.5 py-1 rounded-xl text-[11px] font-extrabold font-mono bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
+              ⚠️ Expired ({pastDays}d ago)
+            </span>
+          );
+        } else if (diffDays === 0) {
+          return (
+            <span className="px-2.5 py-1 rounded-xl text-[11px] font-extrabold font-mono bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 animate-pulse">
+              🚨 Expires Today
+            </span>
+          );
+        } else if (diffDays <= 90) {
+          return (
+            <span className="px-2.5 py-1 rounded-xl text-[11px] font-extrabold font-mono bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+              ⏳ {diffDays} Days Left
+            </span>
+          );
+        } else {
+          return (
+            <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold font-mono bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              🟢 {diffDays} Days Left
+            </span>
+          );
+        }
       }
     },
     {
