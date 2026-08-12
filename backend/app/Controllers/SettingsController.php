@@ -31,7 +31,7 @@ class SettingsController extends Controller
 
         $allowedSettings = [
             'store_name', 'timezone', 'currency_code', 'currency_symbol',
-            'vat_percent', 'vat_calculation_mode', 'date_format',
+            'vat_percent', 'vat_calculation_mode', 'price_tax_type', 'date_format',
             'company_address', 'company_phone', 'company_email'
         ];
 

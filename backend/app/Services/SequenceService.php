@@ -12,7 +12,8 @@ class SequenceService
         // Ensure default fallbacks
         if (!isset($rows['currency_code'])) $rows['currency_code'] = 'BHD';
         if (!isset($rows['vat_percent'])) $rows['vat_percent'] = '10.00';
-        if (!isset($rows['vat_calculation_mode'])) $rows['vat_calculation_mode'] = 'ITEM_WISE'; // ITEM_WISE vs TOTAL_BILL
+        if (!isset($rows['vat_calculation_mode'])) $rows['vat_calculation_mode'] = 'ITEM_WISE'; // ITEM_WISE, TOTAL_BILL, NO_VAT
+        if (!isset($rows['price_tax_type'])) $rows['price_tax_type'] = 'EXCLUSIVE'; // EXCLUSIVE vs INCLUSIVE
         if (!isset($rows['date_format'])) $rows['date_format'] = 'DD/MM/YYYY';
         if (!isset($rows['decimal_places'])) {
             $rows['decimal_places'] = in_array($rows['currency_code'], ['BHD', 'KWD', 'OMR']) ? '3' : '2';

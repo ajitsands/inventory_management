@@ -131,7 +131,9 @@ export default function SubBranchInvoicing() {
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
-  const vatRate = parseFloat(settings.vat_percent || 10.00);
+  const isNoVat = settings.vat_calculation_mode === 'NO_VAT';
+  const isTaxInclusive = !isNoVat && settings.price_tax_type === 'INCLUSIVE';
+  const vatRate = isNoVat ? 0 : parseFloat(settings.vat_percent || 10.00);
 
   const handleLineChange = (index, field, value) => {
     const updated = [...lineItems];
@@ -166,10 +168,33 @@ export default function SubBranchInvoicing() {
     }
   };
 
-  // Calculations for current transfer draft form
-  const grossSubtotal = lineItems.reduce((sum, item) => sum + (parseFloat(item.unit_price || 0) * (parseInt(item.qty) || 0)), 0);
-  const vatAmount = grossSubtotal * (vatRate / 100);
-  const grandTotalVal = grossSubtotal + vatAmount;
+  // Calculations for current transfer draft form according to NO_VAT & INCLUSIVE/EXCLUSIVE policies
+  let grossSubtotal = 0;
+  let vatAmount = 0;
+  let grandTotalVal = 0;
+
+  lineItems.forEach(item => {
+    const price = parseFloat(item.unit_price || 0);
+    const qty = parseInt(item.qty) || 0;
+    const lineTotal = price * qty;
+
+    if (isNoVat) {
+      grossSubtotal += lineTotal;
+      grandTotalVal += lineTotal;
+    } else if (isTaxInclusive) {
+      const lineSub = lineTotal / (1 + (vatRate / 100));
+      const lineVat = lineTotal - lineSub;
+      grossSubtotal += lineSub;
+      vatAmount += lineVat;
+      grandTotalVal += lineTotal;
+    } else {
+      // Tax Exclusive
+      const lineVat = lineTotal * (vatRate / 100);
+      grossSubtotal += lineTotal;
+      vatAmount += lineVat;
+      grandTotalVal += (lineTotal + lineVat);
+    }
+  });
 
   const validateTransfer = () => {
     setMessage(null);
@@ -669,8 +694,12 @@ export default function SubBranchInvoicing() {
             <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <Building2 className="w-4 h-4 text-brand-blue" /> Dispatch New Sub-Branch Stock Transfer & Invoice
             </h3>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-brand-blue border border-blue-200">
-              VAT Rate: {vatRate}%
+            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+              isNoVat
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300'
+                : 'bg-blue-50 dark:bg-blue-950 text-brand-blue border-blue-200'
+            }`}>
+              {isNoVat ? '🚫 No VAT (Tax Exempt)' : `VAT Rate: ${vatRate}% (${isTaxInclusive ? 'Tax Inclusive' : 'Tax Exclusive'})`}
             </span>
           </div>
 
@@ -713,7 +742,14 @@ export default function SubBranchInvoicing() {
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                 {lineItems.map((line, index) => {
-                  const lineSubtotal = (parseFloat(line.unit_price || 0) * (parseInt(line.qty) || 0));
+                  const price = parseFloat(line.unit_price || 0);
+                  const qty = parseInt(line.qty) || 0;
+                  const rawTotal = price * qty;
+                  const lineSubtotal = isNoVat
+                    ? rawTotal
+                    : isTaxInclusive
+                    ? rawTotal / (1 + (vatRate / 100))
+                    : rawTotal;
 
                   return (
                     <tr key={index} className="bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-950/50">

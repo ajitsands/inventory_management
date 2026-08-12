@@ -29,7 +29,10 @@ class BranchTransferController extends Controller
             return;
         }
 
-        $vatPercent = (float)($body['vat_percent'] ?? 10.00);
+        $settings = SequenceService::getSettings();
+        $isNoVat = ($settings['vat_calculation_mode'] ?? '') === 'NO_VAT';
+        $isTaxInclusive = !$isNoVat && (($settings['price_tax_type'] ?? '') === 'INCLUSIVE');
+        $vatPercent = $isNoVat ? 0.00 : (float)($body['vat_percent'] ?? $settings['vat_percent'] ?? 10.00);
 
         $pdo = Model::getDB();
         Model::beginTransaction();
@@ -40,6 +43,8 @@ class BranchTransferController extends Controller
 
             $validatedItems = [];
             $grossSubtotal = 0.00;
+            $vatAmount = 0.00;
+            $grandTotal = 0.00;
 
             foreach ($body['items'] as $idx => $line) {
                 $rawItemId = UrlSecurity::decrypt($line['item_id'] ?? null);
@@ -57,20 +62,38 @@ class BranchTransferController extends Controller
                     return;
                 }
 
-                $subtotal = $unitPrice * $qty;
-                $grossSubtotal += $subtotal;
+                $lineTotal = $unitPrice * $qty;
+
+                if ($isNoVat) {
+                    $lineSubtotal = $lineTotal;
+                    $lineVat = 0.00;
+                    $lineGrand = $lineTotal;
+                } elseif ($isTaxInclusive) {
+                    $lineSubtotal = round($lineTotal / (1 + ($vatPercent / 100)), 3);
+                    $lineVat = round($lineTotal - $lineSubtotal, 3);
+                    $lineGrand = $lineTotal;
+                } else {
+                    $lineSubtotal = $lineTotal;
+                    $lineVat = round($lineTotal * ($vatPercent / 100), 3);
+                    $lineGrand = round($lineTotal + $lineVat, 3);
+                }
+
+                $grossSubtotal += $lineSubtotal;
+                $vatAmount += $lineVat;
+                $grandTotal += $lineGrand;
 
                 $validatedItems[] = [
                     'item_id'    => $itemId,
                     'batch_id'   => $batchId,
                     'qty'        => $qty,
                     'unit_price' => $unitPrice,
-                    'subtotal'   => $subtotal
+                    'subtotal'   => $lineSubtotal
                 ];
             }
 
-            $vatAmount = round($grossSubtotal * ($vatPercent / 100), 3);
-            $grandTotal = round($grossSubtotal + $vatAmount, 3);
+            $grossSubtotal = round($grossSubtotal, 3);
+            $vatAmount = round($vatAmount, 3);
+            $grandTotal = round($grandTotal, 3);
             $initialPaid = isset($body['paid_amount']) ? (float)$body['paid_amount'] : 0.00;
 
             $paymentStatus = 'UNPAID';

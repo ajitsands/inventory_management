@@ -11,6 +11,7 @@ export default function StoreSettings() {
     currency_code: 'BHD',
     vat_percent: '10.00',
     vat_calculation_mode: 'ITEM_WISE',
+    price_tax_type: 'EXCLUSIVE',
     decimal_places: '3',
     date_format: 'DD/MM/YYYY',
     company_address: '',
@@ -231,6 +232,11 @@ export default function StoreSettings() {
                   value: 'TOTAL_BILL',
                   label: 'Total Bill Tax (Calculate VAT on Net Subtotal After Discount)',
                   sublabel: 'Calculates VAT on total bill sum after applying any bill discount'
+                },
+                {
+                  value: 'NO_VAT',
+                  label: 'No VAT / Tax Exempt (0% VAT everywhere)',
+                  sublabel: 'Completely disables VAT calculation. 0% VAT rate applied on all bills and invoices'
                 }
               ]}
               value={settings.vat_calculation_mode}
@@ -238,15 +244,37 @@ export default function StoreSettings() {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Selling Cost / Unit Price Tax Policy *</label>
+            <SearchableSelect
+              options={[
+                {
+                  value: 'EXCLUSIVE',
+                  label: 'Tax Exclusive (Tax Added On Top of Unit Price)',
+                  sublabel: 'Unit price excludes VAT. VAT is calculated and added on top (Net Subtotal + VAT = Total)'
+                },
+                {
+                  value: 'INCLUSIVE',
+                  label: 'Tax Inclusive (Tax Included in Unit Price)',
+                  sublabel: 'Unit price includes VAT. Net subtotal and VAT portion are extracted backwards from entered price'
+                }
+              ]}
+              value={settings.price_tax_type || 'EXCLUSIVE'}
+              onChange={(val) => setSettings({ ...settings, price_tax_type: val })}
+            />
+          </div>
+
           <div className="md:col-span-3">
             <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
               <Calculator className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <strong className="font-bold">VAT Calculation Policy Notice:</strong>
-                {settings.vat_calculation_mode === 'ITEM_WISE' ? (
-                  <p className="mt-0.5">Currently set to <strong>Line Item Tax (ITEM_WISE)</strong>. When creating Purchase Bills or Patient Sales Invoices, every line item will automatically load with default <strong>{settings.vat_percent}%</strong> VAT, but users can edit individual item VAT rates (e.g. set 0% for tax-exempt medicine).</p>
+              <div className="space-y-1">
+                <strong className="font-bold block">VAT & Pricing Calculation Policy Notice:</strong>
+                {settings.vat_calculation_mode === 'NO_VAT' ? (
+                  <p className="mt-0.5">Currently set to <strong>No VAT / Tax Exempt (NO_VAT)</strong>. VAT calculation is <strong>disabled (0.00%)</strong> across all sales and invoices. Tax Inclusive / Exclusive pricing policy has <em>no effect</em> as VAT rate is 0%.</p>
+                ) : settings.vat_calculation_mode === 'ITEM_WISE' ? (
+                  <p className="mt-0.5">Currently set to <strong>Line Item Tax (ITEM_WISE)</strong> with default rate <strong>{settings.vat_percent}%</strong>. Pricing is set to <strong>{settings.price_tax_type === 'INCLUSIVE' ? 'Tax Inclusive (Tax included in unit price)' : 'Tax Exclusive (Tax added on top of unit price)'}</strong>.</p>
                 ) : (
-                  <p className="mt-0.5">Currently set to <strong>Total Bill Tax (TOTAL_BILL)</strong>. Line items will not require individual tax rates. VAT of <strong>{settings.vat_percent}%</strong> will be calculated automatically on the final bill total <em>after subtracting any bill discounts</em>.</p>
+                  <p className="mt-0.5">Currently set to <strong>Total Bill Tax (TOTAL_BILL)</strong> with rate <strong>{settings.vat_percent}%</strong>. VAT will be calculated on the total bill net subtotal. Pricing policy: <strong>{settings.price_tax_type === 'INCLUSIVE' ? 'Tax Inclusive (Tax included in unit price)' : 'Tax Exclusive (Tax added on top of unit price)'}</strong>.</p>
                 )}
               </div>
             </div>
