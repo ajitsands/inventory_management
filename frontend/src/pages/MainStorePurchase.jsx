@@ -311,6 +311,14 @@ export default function MainStorePurchase() {
       const selectedVendor = vendors.find(v => v.id === vendorId || v.raw_id == vendorId);
       const selectedQuotation = openQuotations.find(q => q.id === selectedQuotationId || q.raw_id == selectedQuotationId);
 
+      const formattedItems = lineItems.map(l => {
+        const matchedItem = items.find(i => i.id === l.item_id || i.raw_id == l.item_id);
+        return {
+          ...l,
+          raw_item_id: matchedItem?.raw_id || l.raw_item_id
+        };
+      });
+
       const payload = {
         vendor_id: vendorId,
         raw_vendor_id: selectedVendor?.raw_id,
