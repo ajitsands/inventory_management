@@ -827,7 +827,7 @@ export default function ClinicSalesPOS() {
       {/* Sales Invoice Item Breakdown Detail Modal */}
       {selectedInvoiceDetail && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-3xl w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-5xl w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
             <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <div className="flex items-center gap-2">
