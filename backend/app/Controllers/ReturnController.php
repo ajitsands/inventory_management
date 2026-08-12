@@ -86,9 +86,15 @@ class ReturnController extends Controller
             return;
         }
 
-        if ($returnType === 'MAIN_TO_VENDOR' && !$vendorId) {
-            $this->error('Please select a destination vendor supplier for Main Store return.', 400);
-            return;
+        if ($returnType === 'MAIN_TO_VENDOR') {
+            if ($user['role'] !== 'ADMIN') {
+                $this->error('Main Store to Vendor Supplier returns can only be processed by System Administrator.', 403);
+                return;
+            }
+            if (!$vendorId) {
+                $this->error('Please select a destination vendor supplier for Main Store return.', 400);
+                return;
+            }
         }
 
         if ($returnType !== 'MAIN_TO_VENDOR' && !$toLoc) {

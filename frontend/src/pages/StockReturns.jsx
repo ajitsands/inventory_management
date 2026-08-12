@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
@@ -25,6 +26,8 @@ import {
 } from 'lucide-react';
 
 export default function StockReturns() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const [returnType, setReturnType] = useState('BRANCH_TO_MAIN'); // CLINIC_TO_BRANCH, BRANCH_TO_MAIN, MAIN_TO_VENDOR
   const [returnReason, setReturnReason] = useState('EXCESS_STOCK');
   const [subBranches, setSubBranches] = useState([]);
@@ -111,8 +114,12 @@ export default function StockReturns() {
     loadMasterData();
   }, []);
 
-  // Update default locations when return type changes
   const handleReturnTypeChange = (type) => {
+    if (type === 'MAIN_TO_VENDOR' && !isAdmin) {
+      setMessage({ type: 'error', text: 'Main Store to Vendor Supplier returns can only be processed by System Administrator.' });
+      return;
+    }
+
     setReturnType(type);
     setMessage(null);
     setLineItems([createEmptyLine()]);
@@ -514,18 +521,29 @@ export default function StockReturns() {
 
             <button
               type="button"
+              disabled={!isAdmin}
               onClick={() => handleReturnTypeChange('MAIN_TO_VENDOR')}
               className={`p-3.5 rounded-2xl border text-left transition-all flex items-center gap-3 ${
-                returnType === 'MAIN_TO_VENDOR'
+                !isAdmin
+                  ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                  : returnType === 'MAIN_TO_VENDOR'
                   ? 'bg-purple-50 dark:bg-purple-950/80 border-purple-400 text-purple-900 dark:text-purple-200 shadow-sm font-bold ring-2 ring-purple-400/50'
                   : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
               }`}
+              title={!isAdmin ? 'Restricted to System Administrator Only' : 'Return stock back to Supplier'}
             >
               <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900 text-purple-700">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xs font-bold block">Main Store ➔ Vendor Supplier</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold block">Main Store ➔ Vendor Supplier</span>
+                  {!isAdmin && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                      ADMIN ONLY
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Return defective/expired stock back to Supplier</span>
               </div>
             </button>
