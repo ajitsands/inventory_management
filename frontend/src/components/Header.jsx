@@ -29,7 +29,7 @@ export default function Header({ activeTab, setActiveTab }) {
   };
 
   return (
-    <header className="h-20 border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between transition-colors duration-200">
+    <header className="h-20 border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-50 px-6 flex items-center justify-between transition-colors duration-200">
       {/* Brand & Logo */}
       <div className="flex items-center space-x-3.5">
         <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center">
@@ -104,7 +104,7 @@ export default function Header({ activeTab, setActiveTab }) {
 
           {/* Floating User Profile Dropdown Menu */}
           {dropdownOpen && (
-            <div className="absolute z-50 right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden glass-panel divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="absolute z-[100] right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden glass-panel divide-y divide-slate-100 dark:divide-slate-800">
               {/* Header Info */}
               <div className="p-4 bg-slate-50/80 dark:bg-slate-950/80">
                 <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{user?.full_name}</p>
