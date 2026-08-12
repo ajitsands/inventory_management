@@ -5,7 +5,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X, FileText, Calendar, User, Building2 } from 'lucide-react';
+import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X, FileText, Calendar, User, Building2, UserPlus, Phone, Mail, MapPin } from 'lucide-react';
 
 export default function ClinicSalesPOS() {
   const { user } = useAuth();
@@ -32,6 +32,14 @@ export default function ClinicSalesPOS() {
   const [cart, setCart] = useState([]);
   const [discountAmount, setDiscountAmount] = useState('0.00');
   const [doctorName, setDoctorName] = useState('');
+
+  // Quick New Patient Modal State
+  const [showNewPatientModal, setShowNewPatientModal] = useState(false);
+  const [newPatientName, setNewPatientName] = useState('');
+  const [newPatientPhone, setNewPatientPhone] = useState('');
+  const [newPatientEmail, setNewPatientEmail] = useState('');
+  const [newPatientAddress, setNewPatientAddress] = useState('');
+  const [savingPatient, setSavingPatient] = useState(false);
 
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -79,14 +87,15 @@ export default function ClinicSalesPOS() {
       const clns = (masterRes.locations || []).filter(l => l.type === 'CLINIC');
       setClinics(clns);
 
-      setCustomers(custRes.customers || []);
+      const custs = custRes.customers || [];
+      setCustomers(custs);
       setSalesInvoices(salesRes.invoices || []);
 
       const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
 
-      if (custRes.customers && custRes.customers.length > 0) {
-        setSelectedCustomerId(custRes.customers[0].id);
+      if (custs.length > 0 && !selectedCustomerId) {
+        setSelectedCustomerId(custs[0].id);
       }
 
       // Clinic Location Context Selection
@@ -130,6 +139,51 @@ export default function ClinicSalesPOS() {
       return () => clearTimeout(timer);
     }
   }, [message]);
+
+  const handleCreateQuickPatient = async (e) => {
+    e.preventDefault();
+    if (!newPatientName.trim()) {
+      setMessage({ type: 'error', text: 'Patient name is required.' });
+      return;
+    }
+
+    setSavingPatient(true);
+    try {
+      const res = await apiFetch('/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newPatientName.trim(),
+          phone: newPatientPhone.trim(),
+          email: newPatientEmail.trim(),
+          address: newPatientAddress.trim()
+        })
+      });
+
+      if (res.success || res.id) {
+        setMessage({ type: 'success', text: `Patient '${newPatientName}' registered successfully!` });
+        setShowNewPatientModal(false);
+        setNewPatientName('');
+        setNewPatientPhone('');
+        setNewPatientEmail('');
+        setNewPatientAddress('');
+
+        // Refresh customer list and auto-select newly added patient
+        const custRes = await apiFetch('/customers');
+        const updatedCusts = custRes.customers || [];
+        setCustomers(updatedCusts);
+
+        const createdId = res.customer_id || res.id;
+        const matched = updatedCusts.find(c => c.id === createdId || c.raw_id == createdId || c.name === newPatientName.trim());
+        if (matched) {
+          setSelectedCustomerId(matched.id);
+        }
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to register new patient' });
+    } finally {
+      setSavingPatient(false);
+    }
+  };
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
@@ -494,7 +548,18 @@ export default function ClinicSalesPOS() {
             {/* Patient & Doctor Selection */}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Patient / Customer *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Select Patient / Customer *</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPatientModal(true)}
+                    className="px-2.5 py-1 rounded-lg bg-brand-blue/10 hover:bg-brand-blue text-brand-blue hover:text-white border border-brand-blue/30 text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                    title="Register a new patient directly from POS for all logins"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    + Quick Add Patient
+                  </button>
+                </div>
                 <SearchableSelect
                   placeholder="Search Patient..."
                   options={customers.map(c => ({ value: c.id, label: `${c.name} (${c.phone || 'Walk-in'})`, sublabel: `Code: ${c.code || c.id}` }))}
@@ -631,6 +696,107 @@ export default function ClinicSalesPOS() {
         searchable={true}
         defaultPageSize={10}
       />
+
+      {/* Quick Add New Patient Modal (Available for All Logins) */}
+      {showNewPatientModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-brand-blue" />
+                  Quick Patient / Customer Registration
+                </h3>
+                <p className="text-xs text-slate-500">Register a new patient directly into OPD POS database</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewPatientModal(false)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateQuickPatient} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Patient Full Name *</label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    required
+                    value={newPatientName}
+                    onChange={(e) => setNewPatientName(e.target.value)}
+                    placeholder="e.g. Abdullah Ahmed"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Contact Phone Number</label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={newPatientPhone}
+                    onChange={(e) => setNewPatientPhone(e.target.value)}
+                    placeholder="e.g. +973 39123456"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address (Optional)</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="email"
+                    value={newPatientEmail}
+                    onChange={(e) => setNewPatientEmail(e.target.value)}
+                    placeholder="abdullah@example.com"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Residential Address (Optional)</label>
+                <div className="relative">
+                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={newPatientAddress}
+                    onChange={(e) => setNewPatientAddress(e.target.value)}
+                    placeholder="Block 338, Manama, Bahrain"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowNewPatientModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPatient}
+                  className="px-5 py-2 rounded-xl bg-brand-blue text-white font-bold text-xs shadow-md glow-blue hover:bg-brand-blue/90 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {savingPatient ? 'Registering Patient...' : 'Register Patient & Select'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
