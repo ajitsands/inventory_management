@@ -43,10 +43,13 @@ export default function BatchInventory() {
   const [trackerError, setTrackerError] = useState(null);
 
   const fetchStock = async (locId) => {
-    if (!locId) return;
+    const ALL_BRANCHES = (locId === 0 || locId === '0');
     setLoading(true);
     try {
-      const data = await apiFetch(`/stock/location?location_id=${encodeURIComponent(locId)}`);
+      const url = ALL_BRANCHES
+        ? '/stock/location?raw_location_id=0'
+        : `/stock/location?location_id=${encodeURIComponent(locId)}`;
+      const data = await apiFetch(url);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -82,11 +85,9 @@ export default function BatchInventory() {
         if (settingsRes.settings) {
           setSettings(settingsRes.settings);
         }
-        if (locs.length > 0) {
-          const initialLocVal = locs[0].raw_id || locs[0].id;
-          setSelectedLocation(initialLocVal);
-          fetchStock(initialLocVal);
-        }
+        // Default to All Branches Combined (location 0)
+        setSelectedLocation(0);
+        fetchStock(0);
       } catch (err) {
         console.error(err);
       } finally {
@@ -226,9 +227,16 @@ export default function BatchInventory() {
       accessor: 'quantity_available',
       className: 'text-right',
       render: (b) => (
-        <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold font-mono text-slate-900 dark:text-slate-100">
-          {b.quantity_available}
-        </span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="px-3 py-1 rounded-xl bg-brand-blue/10 border border-brand-blue/30 font-bold font-mono text-brand-blue text-sm">
+            {b.quantity_available}
+          </span>
+          {b.location_breakdown && (
+            <span className="text-[9px] text-slate-400 font-mono max-w-[180px] text-right leading-tight">
+              {b.location_breakdown}
+            </span>
+          )}
+        </div>
       )
     },
     {
@@ -265,7 +273,10 @@ export default function BatchInventory() {
           <Building2 className="w-4 h-4 text-brand-blue shrink-0" />
           <SearchableSelect
             placeholder="Search Location..."
-            options={locations.map(l => ({ value: l.raw_id || l.id, label: `${l.name} (${l.type})`, sublabel: `Location Code: ${l.code}` }))}
+            options={[
+              { value: 0, label: '🌐 All Branches Combined', sublabel: 'Sum of stock across every location' },
+              ...locations.map(l => ({ value: l.raw_id || l.id, label: `${l.name} (${l.type})`, sublabel: `Location Code: ${l.code}` }))
+            ]}
             value={selectedLocation}
             onChange={(val) => handleLocationChange(val)}
           />

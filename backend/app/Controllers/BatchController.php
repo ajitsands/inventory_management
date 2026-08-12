@@ -31,11 +31,19 @@ class BatchController extends Controller {
 
         if (!$isGlobalAdmin && !empty($userLocId)) {
             $targetLocId = (int)$userLocId;
-        } elseif ($targetLocId <= 0) {
+        }
+        // targetLocId=0 means "All Branches Combined" (admin only)
+        if ($targetLocId < 0) {
             $targetLocId = 1;
         }
 
-        $batches = ItemBatch::getBatchesByLocation($targetLocId);
+        if ($targetLocId === 0 && $isGlobalAdmin) {
+            // All Branches Combined
+            $batches = ItemBatch::getAllLocationsStock();
+        } else {
+            $batches = ItemBatch::getBatchesByLocation($targetLocId > 0 ? $targetLocId : 1);
+        }
+
         $encrypted = array_map(function($b) {
             $rawStockId = (int)$b['stock_id'];
             $rawBatchId = (int)($b['batch_id'] ?? $rawStockId);
@@ -52,6 +60,7 @@ class BatchController extends Controller {
             'batches' => $encrypted
         ]);
     }
+
 
     public function getMasterData() {
         $this->requireAuth();
