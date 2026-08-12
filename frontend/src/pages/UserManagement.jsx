@@ -212,15 +212,21 @@ export default function UserManagement() {
 
           {/* Activate / Deactivate Toggle Button */}
           {u.status === 'ACTIVE' ? (
-            <button
-              type="button"
-              onClick={() => handleToggleStatus(u)}
-              className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-300 text-xs font-bold transition-all flex items-center gap-1"
-              title="Deactivate User Access"
-            >
-              <UserX className="w-3.5 h-3.5" />
-              Deactivate
-            </button>
+            u.role !== 'ADMIN' ? (
+              <button
+                type="button"
+                onClick={() => handleToggleStatus(u)}
+                className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-300 text-xs font-bold transition-all flex items-center gap-1"
+                title="Deactivate User Access"
+              >
+                <UserX className="w-3.5 h-3.5" />
+                Deactivate
+              </button>
+            ) : (
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-[11px] font-semibold italic border border-slate-200 dark:border-slate-800">
+                System Admin Protected
+              </span>
+            )
           ) : (
             <button
               type="button"

@@ -112,6 +112,12 @@ class AuthController extends Controller {
             return;
         }
 
+        $targetUser = User::findById($userId);
+        if ($targetUser && $targetUser['role'] === 'ADMIN' && $newStatus === 'INACTIVE') {
+            $this->error('System Administrator accounts are protected and cannot be deactivated.', 400);
+            return;
+        }
+
         User::toggleStatus($userId, $newStatus);
 
         AuditLogger::log($currentUser['user_id'], $currentUser['username'], $currentUser['role'], 'USER_MGMT', 'TOGGLE_USER_STATUS', null, ['target_user_id' => $userId, 'status' => $newStatus], $currentUser['location_id']);
