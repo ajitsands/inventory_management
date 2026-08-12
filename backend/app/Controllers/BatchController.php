@@ -9,7 +9,10 @@ require_once __DIR__ . '/../Models/Item.php';
 class BatchController extends Controller {
 
     public function getStockByLocation() {
-        $this->requireAuth();
+        $user = $this->requireAuth();
+        $userLocId = $user['location_id'] ?? null;
+        $isGlobalAdmin = ($user['role'] === 'ADMIN') || empty($userLocId);
+
         $rawLocId = $_GET['raw_location_id'] ?? null;
         $locationId = $_GET['location_id'] ?? null;
 
@@ -26,7 +29,11 @@ class BatchController extends Controller {
             }
         }
 
-        if ($targetLocId <= 0) $targetLocId = 1;
+        if (!$isGlobalAdmin && !empty($userLocId)) {
+            $targetLocId = (int)$userLocId;
+        } elseif ($targetLocId <= 0) {
+            $targetLocId = 1;
+        }
 
         $batches = ItemBatch::getBatchesByLocation($targetLocId);
         $encrypted = array_map(function($b) {

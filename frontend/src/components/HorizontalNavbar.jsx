@@ -37,9 +37,13 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const userLocId = user?.location_id || user?.raw_location_id;
+  const isGlobalOrMainAdmin = (role === 'ADMIN') || (!userLocId || userLocId == 1);
+
   const isMastersActive = activeTab === 'items' || activeTab === 'master-data';
   const isReportsActive = activeTab === 'batches' || activeTab === 'reports';
-  const canSeeMasters = ['ADMIN', 'STORE_MANAGER'].includes(role);
+  const canSeeMasters = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
+  const canSeeMainStorePurchase = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
   const canSeeReports = ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'].includes(role);
 
   return (
@@ -123,7 +127,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
         )}
 
         {/* 3. Vendor Quotations / POs */}
-        {canSeeMasters && (
+        {canSeeMainStorePurchase && (
           <button
             onClick={() => { setActiveTab('quotations'); setMastersOpen(false); setReportsOpen(false); }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
@@ -138,7 +142,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
         )}
 
         {/* 4. Vendor Purchase (Main Store) */}
-        {canSeeMasters && (
+        {canSeeMainStorePurchase && (
           <button
             onClick={() => { setActiveTab('purchase'); setMastersOpen(false); setReportsOpen(false); }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
