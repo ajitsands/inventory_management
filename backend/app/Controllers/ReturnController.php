@@ -162,9 +162,10 @@ class ReturnController extends Controller
             $stmtReturn->execute([$returnRef, $returnRef, $returnType, $fromLoc, $toLoc, $reason, $notes, $reason, $user['user_id']]);
             $returnId = (int)$pdo->lastInsertId();
 
+            // Write to BOTH old (qty, unit_price, subtotal) and new (quantity, unit_rate, total_amount) columns for compatibility
             $stmtItem = $pdo->prepare("INSERT INTO `stock_return_items` 
-                (`return_id`, `item_id`, `batch_id`, `batch_code`, `quantity`, `unit_rate`, `total_amount`, `status`) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')");
+                (`return_id`, `item_id`, `batch_id`, `batch_code`, `qty`, `quantity`, `unit_price`, `unit_rate`, `subtotal`, `total_amount`, `status`) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')");
 
             $stmtWallet = $pdo->prepare("INSERT INTO `stock_return_wallets` 
                 (`return_id`, `return_item_id`, `target_location_id`, `item_id`, `batch_id`, `quantity`, `wallet_type`, `status`, `created_at`) 
@@ -199,8 +200,8 @@ class ReturnController extends Controller
                 $batchCode = $batchRow['batch_code'];
                 $totalAmt = $qty * $unitRate;
 
-                // Insert stock_return_items
-                $stmtItem->execute([$returnId, $rawItemId, $rawBatchId, $batchCode, $qty, $unitRate, $totalAmt]);
+                // Insert stock_return_items — write to both old and new columns
+                $stmtItem->execute([$returnId, $rawItemId, $rawBatchId, $batchCode, $qty, $qty, $unitRate, $unitRate, $totalAmt, $totalAmt]);
                 $returnItemId = (int)$pdo->lastInsertId();
 
                 // Deduct stock from source location
@@ -282,7 +283,15 @@ class ReturnController extends Controller
         $stmt->execute($params);
         $returns = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmtItems = $pdo->prepare("SELECT sri.*, i.name AS item_name, i.item_code, i.unit_of_measure, b.batch_code, b.expiry_date
+        $stmtItems = $pdo->prepare("SELECT sri.id, sri.return_id, sri.item_id, sri.batch_id, sri.status,
+                                    COALESCE(NULLIF(sri.batch_code,''), b.batch_code) AS batch_code,
+                                    COALESCE(sri.quantity, sri.qty)          AS quantity,
+                                    COALESCE(sri.accepted_qty, 0)            AS accepted_qty,
+                                    COALESCE(sri.rejected_qty, 0)            AS rejected_qty,
+                                    COALESCE(sri.unit_rate, sri.unit_price)  AS unit_rate,
+                                    COALESCE(sri.total_amount, sri.subtotal) AS total_amount,
+                                    i.name AS item_name, i.item_code, i.unit_of_measure,
+                                    b.expiry_date
                                     FROM `stock_return_items` sri
                                     JOIN `items` i ON sri.item_id = i.id
                                     JOIN `item_batches` b ON sri.batch_id = b.id
@@ -760,7 +769,15 @@ class ReturnController extends Controller
         $stmt->execute($params);
         $returns = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmtItems = $pdo->prepare("SELECT sri.*, i.name AS item_name, i.item_code, i.unit_of_measure, b.batch_code, b.expiry_date
+        $stmtItems = $pdo->prepare("SELECT sri.id, sri.return_id, sri.item_id, sri.batch_id, sri.status,
+                                    COALESCE(NULLIF(sri.batch_code,''), b.batch_code) AS batch_code,
+                                    COALESCE(sri.quantity, sri.qty)          AS quantity,
+                                    COALESCE(sri.accepted_qty, 0)            AS accepted_qty,
+                                    COALESCE(sri.rejected_qty, 0)            AS rejected_qty,
+                                    COALESCE(sri.unit_rate, sri.unit_price)  AS unit_rate,
+                                    COALESCE(sri.total_amount, sri.subtotal) AS total_amount,
+                                    i.name AS item_name, i.item_code, i.unit_of_measure,
+                                    b.expiry_date
                                     FROM `stock_return_items` sri
                                     JOIN `items` i ON sri.item_id = i.id
                                     JOIN `item_batches` b ON sri.batch_id = b.id

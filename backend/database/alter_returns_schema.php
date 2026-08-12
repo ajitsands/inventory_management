@@ -157,4 +157,26 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS `damaged_stock` (
 
 echo "   damaged_stock OK.\n";
 
+// -------------------------------------------------------
+// 6. Sync data: update new columns from old columns for ALL existing rows
+// -------------------------------------------------------
+echo "\n6. Syncing existing row data (qty->quantity, unit_price->unit_rate)...\n";
+
+$pdo->exec("UPDATE `stock_return_items` 
+    SET `quantity`     = `qty`,
+        `unit_rate`    = `unit_price`,
+        `total_amount` = `subtotal`
+    WHERE `quantity` = 0 AND `qty` > 0");
+
+$affected = $pdo->query("SELECT ROW_COUNT()")->fetchColumn();
+echo "   Synced rows in stock_return_items: " . $affected . "\n";
+
+// Also sync return_reference = return_no where reference is blank
+$pdo->exec("UPDATE `stock_returns` 
+    SET `return_reference` = `return_no`,
+        `reason` = COALESCE(NULLIF(`reason`,''), `return_reason`)
+    WHERE (return_reference IS NULL OR return_reference = '') AND return_no IS NOT NULL");
+
+echo "   Synced return_reference from return_no.\n";
+
 echo "\n=== Migration Complete! ===\n";
