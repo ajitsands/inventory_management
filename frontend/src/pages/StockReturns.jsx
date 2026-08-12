@@ -26,7 +26,8 @@ import {
   X,
   FileCheck,
   ArrowUpRight,
-  ArrowRight
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
 
 const RETURN_REASON_OPTIONS = [
@@ -320,7 +321,7 @@ export default function StockReturns() {
   };
 
   const handleAcceptReturn = async (ret) => {
-    setConfirmModal({ ...confirmModal, isOpen: false });
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
     setSubmitting(true);
     try {
@@ -375,7 +376,7 @@ export default function StockReturns() {
   };
 
   const handleRestoreRejectStock = async (rej) => {
-    setConfirmModal({ ...confirmModal, isOpen: false });
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
     setSubmitting(true);
     try {
@@ -396,7 +397,7 @@ export default function StockReturns() {
   };
 
   const handleAcceptAndForwardReturn = async (ret) => {
-    setConfirmModal({ ...confirmModal, isOpen: false });
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
     setSubmitting(true);
     try {
       const res = await apiFetch('/returns/accept-and-forward', {
@@ -408,6 +409,8 @@ export default function StockReturns() {
         setMessage({ type: 'success', text: res.message });
         setSelectedWalletReturn(null);
         loadData();
+      } else {
+        setMessage({ type: 'error', text: res.message || 'Failed to accept and forward return' });
       }
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Failed to accept and forward return' });

@@ -153,7 +153,7 @@ class ReturnController extends Controller
         try {
             Model::beginTransaction();
 
-            $returnRef = SequenceService::generateNextNumber('return');
+            $returnRef = SequenceService::generateNextNumber('stock_return');
 
             // Insert with all columns — supports both old (return_no, return_reason, remarks) and new schema
             $stmtReturn = $pdo->prepare("INSERT INTO `stock_returns` 
@@ -459,7 +459,7 @@ class ReturnController extends Controller
             $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
             // Create new return from Branch to Main Store
-            $newReturnRef = SequenceService::generateNextNumber('return');
+            $newReturnRef = SequenceService::generateNextNumber('stock_return');
             
             $stmtNewReturn = $pdo->prepare("INSERT INTO `stock_returns` 
                 (`return_no`, `return_reference`, `return_type`, `from_location_id`, `to_location_id`, `return_reason`, `reason`, `remarks`, `notes`, `status`, `created_by`, `created_at`) 
