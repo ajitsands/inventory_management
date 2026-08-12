@@ -8,10 +8,24 @@ import { Boxes, Building2 } from 'lucide-react';
 
 export default function BatchInventory() {
   const [locations, setLocations] = useState([]);
-  const [selectedLocation, setSelectedLocation] = useState(1);
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [batches, setBatches] = useState([]);
   const [settings, setSettings] = useState({ currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
+
+  const fetchStock = async (locId) => {
+    if (!locId) return;
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/stock/location?location_id=${encodeURIComponent(locId)}`);
+      setBatches(data.batches || []);
+    } catch (err) {
+      console.error(err);
+      setBatches([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     async function init() {
@@ -20,13 +34,15 @@ export default function BatchInventory() {
           apiFetch('/master-data'),
           apiFetch('/settings')
         ]);
-        setLocations(master.locations || []);
+        const locs = master.locations || [];
+        setLocations(locs);
         if (settingsRes.settings) {
           setSettings(settingsRes.settings);
         }
-        if (master.locations && master.locations.length > 0) {
-          setSelectedLocation(master.locations[0].id);
-          fetchStock(master.locations[0].id);
+        if (locs.length > 0) {
+          const initialLocVal = locs[0].raw_id || locs[0].id;
+          setSelectedLocation(initialLocVal);
+          fetchStock(initialLocVal);
         }
       } catch (err) {
         console.error(err);
@@ -39,18 +55,6 @@ export default function BatchInventory() {
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
-
-  const fetchStock = async (locId) => {
-    setLoading(true);
-    try {
-      const data = await apiFetch(`/stock/location?location_id=${locId}`);
-      setBatches(data.batches || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLocationChange = (locId) => {
     setSelectedLocation(locId);
@@ -76,22 +80,22 @@ export default function BatchInventory() {
     {
       header: 'Supplier Vendor',
       accessor: 'vendor_name',
-      render: (b) => <span className="text-slate-700 dark:text-slate-300 font-medium">{b.vendor_name}</span>
+      render: (b) => <span className="text-slate-700 dark:text-slate-300 font-medium">{b.vendor_name || 'N/A'}</span>
     },
     {
       header: `Cost Price (${currencyCode})`,
       accessor: 'purchase_price',
-      render: (b) => <span className="text-slate-700 dark:text-slate-300">{formatCurrency(b.purchase_price, currencyCode, decimalPlaces)}</span>
+      render: (b) => <span className="text-slate-700 dark:text-slate-300 font-mono">{formatCurrency(b.purchase_price, currencyCode, decimalPlaces)}</span>
     },
     {
       header: `Sales Price (${currencyCode})`,
       accessor: 'selling_price',
-      render: (b) => <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(b.selling_price, currencyCode, decimalPlaces)}</span>
+      render: (b) => <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(b.selling_price, currencyCode, decimalPlaces)}</span>
     },
     {
       header: `MRP (${currencyCode})`,
       accessor: 'mrp',
-      render: (b) => <span className="text-slate-500 dark:text-slate-400">{formatCurrency(b.mrp, currencyCode, decimalPlaces)}</span>
+      render: (b) => <span className="text-slate-500 dark:text-slate-400 font-mono">{formatCurrency(b.mrp, currencyCode, decimalPlaces)}</span>
     },
     {
       header: 'Expiry Date',
@@ -112,7 +116,7 @@ export default function BatchInventory() {
       accessor: 'quantity_available',
       className: 'text-right',
       render: (b) => (
-        <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100">
+        <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold font-mono text-slate-900 dark:text-slate-100">
           {b.quantity_available}
         </span>
       )
@@ -132,11 +136,11 @@ export default function BatchInventory() {
         </div>
 
         {/* Searchable Location Selector */}
-        <div className="flex items-center space-x-2 w-72">
+        <div className="flex items-center space-x-2 w-80">
           <Building2 className="w-4 h-4 text-brand-blue shrink-0" />
           <SearchableSelect
             placeholder="Search Location..."
-            options={locations.map(l => ({ value: l.id, label: l.name, sublabel: l.type }))}
+            options={locations.map(l => ({ value: l.raw_id || l.id, label: `${l.name} (${l.type})`, sublabel: `Location Code: ${l.code}` }))}
             value={selectedLocation}
             onChange={(val) => handleLocationChange(val)}
           />
@@ -151,6 +155,7 @@ export default function BatchInventory() {
         data={batches}
         searchable={true}
         defaultPageSize={10}
+        minHeight="min-h-[450px]"
       />
     </div>
   );

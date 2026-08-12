@@ -12,7 +12,7 @@ class ItemBatch extends Model {
                 FROM `location_batch_stock` lbs
                 JOIN `item_batches` b ON lbs.batch_id = b.id
                 JOIN `items` i ON b.item_id = i.id
-                JOIN `vendors` v ON b.vendor_id = v.id
+                LEFT JOIN `vendors` v ON b.vendor_id = v.id
                 WHERE lbs.location_id = ? AND lbs.quantity_available > 0
                 ORDER BY b.expiry_date ASC, i.name ASC";
         

@@ -10,16 +10,28 @@ class BatchController extends Controller {
 
     public function getStockByLocation() {
         $this->requireAuth();
-        $locationId = $_GET['location_id'] ?? 1;
-        if (strpos($locationId, 'enc_') === 0) {
-            $locationId = UrlSecurity::decrypt($locationId);
+        $locationId = $_GET['location_id'] ?? $_GET['raw_location_id'] ?? 1;
+        
+        if (is_string($locationId) && (strpos($locationId, 'enc_') === 0 || strpos($locationId, 'enc ') === 0)) {
+            $formattedToken = str_replace(' ', '+', $locationId);
+            $decrypted = UrlSecurity::decrypt($formattedToken);
+            if ($decrypted !== null && $decrypted !== false && $decrypted !== '') {
+                $locationId = $decrypted;
+            }
         }
 
-        $batches = ItemBatch::getBatchesByLocation((int)$locationId);
+        $targetLocId = (int)$locationId;
+        if ($targetLocId <= 0) $targetLocId = 1;
+
+        $batches = ItemBatch::getBatchesByLocation($targetLocId);
         $encrypted = array_map(function($b) {
-            $b['raw_id'] = (int)$b['id'];
-            $b['id'] = UrlSecurity::encrypt($b['id']);
-            $b['batch_id'] = UrlSecurity::encrypt($b['batch_id'] ?? $b['raw_id']);
+            $rawStockId = (int)$b['stock_id'];
+            $rawBatchId = (int)($b['batch_id'] ?? $rawStockId);
+            $b['raw_id'] = $rawStockId;
+            $b['id'] = UrlSecurity::encrypt($rawStockId);
+            $b['raw_batch_id'] = $rawBatchId;
+            $b['batch_id'] = UrlSecurity::encrypt($rawBatchId);
+            $b['vendor_name'] = $b['vendor_name'] ?? 'N/A';
             return $b;
         }, $batches);
 
