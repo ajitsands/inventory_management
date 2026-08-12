@@ -21,6 +21,7 @@ export const MOVEMENT_BADGES = {
   BRANCH_TRANSFER: { label: 'Sub-Branch Invoiced Transfer', color: 'text-blue-700 bg-blue-100 border-blue-300 dark:text-blue-300 dark:bg-blue-950/60' },
   CLINIC_TRANSFER: { label: 'Clinic Stock Transfer', color: 'text-cyan-700 bg-cyan-100 border-cyan-300 dark:text-cyan-300 dark:bg-cyan-950/60' },
   CUSTOMER_SALE: { label: 'OPD Patient Sale (FIFO)', color: 'text-amber-700 bg-amber-100 border-amber-300 dark:text-amber-300 dark:bg-amber-950/60' },
+  STOCK_RETURN: { label: 'Stock Return', color: 'text-rose-700 bg-rose-100 border-rose-300 dark:text-rose-300 dark:bg-rose-950/60 font-bold' },
   ADJUSTMENT: { label: 'Stock Adjustment', color: 'text-purple-700 bg-purple-100 border-purple-300 dark:text-purple-300 dark:bg-purple-950/60' },
 };
 
@@ -28,6 +29,7 @@ export const MODULE_BADGES = {
   PURCHASE: { label: 'Vendor Purchase', bg: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' },
   BRANCH_TRANSFER: { label: 'Branch Transfer', bg: 'bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-950 dark:text-cyan-300' },
   CLINIC_TRANSFER: { label: 'Clinic Transfer', bg: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300' },
+  STOCK_RETURN: { label: 'Stock Return', bg: 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300' },
   OPD_DISPENSING: { label: 'OPD Dispensing POS', bg: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300' },
   STORE_SETTINGS: { label: 'Store Settings', bg: 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300' },
   MASTER_VENDOR: { label: 'Master Vendor', bg: 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300' },
