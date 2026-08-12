@@ -106,10 +106,10 @@ export default function StockReturns() {
       ]);
 
       const locs = masterData.locations || [];
-      const sbList = locs.filter(l => l.type === 'SUB_BRANCH');
+      const sbList = locs.filter(l => l.type === 'SUB_BRANCH' || l.type === 'MAIN_BRANCH' || l.type === 'BRANCH');
       const cList = locs.filter(l => l.type === 'CLINIC');
 
-      setSubBranches(sbList);
+      setSubBranches(sbList.length > 0 ? sbList : locs);
       setClinics(cList);
       setWalletReturns(walletRes.wallet_returns || []);
       setSystemReturns(historyRes.returns || []);
@@ -126,7 +126,7 @@ export default function StockReturns() {
         setReturnType('CLINIC_TO_BRANCH');
         const userClinic = cList.find(c => c.id == userLocId || c.raw_id == userLocId);
         initialFromId = userClinic ? userClinic.id : (cList.length > 0 ? cList[0].id : '');
-        initialToId = sbList.length > 0 ? sbList[0].id : '';
+        initialToId = sbList.length > 0 ? sbList[0].id : (locs.length > 0 ? locs[0].id : '');
       } else if (isBranchManager) {
         setReturnType('BRANCH_TO_MAIN');
         const userBranch = sbList.find(s => s.id == userLocId || s.raw_id == userLocId);
