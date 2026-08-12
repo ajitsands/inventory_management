@@ -17,6 +17,11 @@ class SalesController extends Controller
         $rawClinicLoc = UrlSecurity::decrypt($body['clinic_location_id'] ?? null);
         $clinicLocId = !empty($rawClinicLoc) ? (int)$rawClinicLoc : (int)($body['raw_clinic_location_id'] ?? $body['clinic_location_id'] ?? $user['location_id'] ?? 4);
 
+        $userLocId = $user['location_id'] ?? null;
+        if ($user['role'] !== 'ADMIN' && !empty($userLocId)) {
+            $clinicLocId = (int)$userLocId;
+        }
+
         if (!$clinicLocId || empty($body['items']) || !is_array($body['items'])) {
             $this->error('Missing required parameters for OPD dispensing invoice.', 400);
             return;

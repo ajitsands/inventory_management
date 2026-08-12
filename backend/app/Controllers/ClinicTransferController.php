@@ -14,6 +14,11 @@ class ClinicTransferController extends Controller {
         $rawFromLoc = UrlSecurity::decrypt($body['from_location_id'] ?? null);
         $fromLoc = !empty($rawFromLoc) ? (int)$rawFromLoc : (int)($body['raw_from_location_id'] ?? $body['from_location_id'] ?? 0);
 
+        $userLocId = $user['location_id'] ?? null;
+        if ($user['role'] !== 'ADMIN' && !empty($userLocId)) {
+            $fromLoc = (int)$userLocId;
+        }
+
         $rawToLoc = UrlSecurity::decrypt($body['to_location_id'] ?? null);
         $toLoc = !empty($rawToLoc) ? (int)$rawToLoc : (int)($body['raw_to_location_id'] ?? $body['to_location_id'] ?? 0);
 

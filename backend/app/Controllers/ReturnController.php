@@ -81,6 +81,11 @@ class ReturnController extends Controller
         $toLoc = (int)($body['raw_to_location_id'] ?? UrlSecurity::decrypt($body['to_location_id'] ?? null) ?? $body['to_location_id'] ?? 0);
         $vendorId = (int)($body['raw_vendor_id'] ?? UrlSecurity::decrypt($body['vendor_id'] ?? null) ?? $body['vendor_id'] ?? 0);
 
+        $userLocId = $user['location_id'] ?? null;
+        if ($user['role'] !== 'ADMIN' && !empty($userLocId)) {
+            $fromLoc = (int)$userLocId;
+        }
+
         if (!$fromLoc) {
             $this->error('Please select a valid source location for the stock return.', 400);
             return;
