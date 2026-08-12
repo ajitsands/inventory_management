@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2, HelpCircle, X, DollarSign, FileText, Calendar, Wallet, Receipt, Filter } from 'lucide-react';
+import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2, HelpCircle, X, DollarSign, FileText, Calendar, Wallet, Receipt, Filter, History, ArrowRight } from 'lucide-react';
 
 export default function SubBranchInvoicing() {
   const [subBranches, setSubBranches] = useState([]);
@@ -254,7 +254,7 @@ export default function SubBranchInvoicing() {
           type="button"
           onClick={() => setSelectedTransferDetail(t)}
           className="text-left font-mono font-bold text-brand-blue hover:underline cursor-pointer flex items-center gap-1 group"
-          title="Click to view full line items and VAT breakdown"
+          title="Click to view full line items, VAT breakdown & stock movement ledger"
         >
           <FileText className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
           {t.invoice_no || t.transfer_no}
@@ -337,26 +337,30 @@ export default function SubBranchInvoicing() {
       render: (t) => {
         const pending = parseFloat(t.pending_balance || 0);
         return (
-          <div className="flex items-center justify-center gap-1">
+          <div className="flex items-center justify-center gap-1.5">
             <button
               onClick={() => setSelectedTransferDetail(t)}
               className="p-1.5 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-xs font-semibold flex items-center gap-1"
-              title="View Invoice Breakdown"
+              title="View Invoice Breakdown & Ledger"
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-4 h-4 text-brand-blue" />
             </button>
 
-            {pending > 0 && (
+            {pending > 0 ? (
               <button
                 onClick={() => {
                   setPaymentModalTransfer(t);
                   setPaymentAmountInput(pending.toFixed(3));
                 }}
-                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] shadow-xs flex items-center gap-1 transition-all"
-                title="Record Payment Received"
+                className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold rounded-xl text-[11px] shadow-sm flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                title="Record Payment Received Against Invoice"
               >
-                <DollarSign className="w-3 h-3" /> Receive
+                <DollarSign className="w-3.5 h-3.5" /> Receive Payment
               </button>
+            ) : (
+              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                ✓ Fully Paid
+              </span>
             )}
           </div>
         );
@@ -703,7 +707,7 @@ export default function SubBranchInvoicing() {
                   <Wallet className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">Record Sub-Branch Payment</h3>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">Record Sub-Branch Payment Received</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Invoice: {paymentModalTransfer.invoice_no || paymentModalTransfer.transfer_no}</p>
                 </div>
               </div>
@@ -713,7 +717,7 @@ export default function SubBranchInvoicing() {
             <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
               <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Sub-Branch:</span>
+                  <span className="text-slate-400">Sub-Branch Location:</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200">{paymentModalTransfer.to_location_name}</span>
                 </div>
                 <div className="flex justify-between">
@@ -755,7 +759,7 @@ export default function SubBranchInvoicing() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold text-xs shadow-md flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Save Payment Entry
                 </button>
@@ -765,7 +769,7 @@ export default function SubBranchInvoicing() {
         </div>
       )}
 
-      {/* Invoice Breakdown Detail Modal */}
+      {/* Invoice Breakdown & Stock Movement Ledger Detail Modal */}
       {selectedTransferDetail && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-5xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150 my-8">
@@ -783,7 +787,7 @@ export default function SubBranchInvoicing() {
                       BRANCH INVOICED
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete items breakdown & separated VAT invoice details</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete items breakdown, separated VAT & stock movement ledger entries</p>
                 </div>
               </div>
 
@@ -865,6 +869,56 @@ export default function SubBranchInvoicing() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Stock Movements Ledger Logs Section */}
+            <div className="space-y-2 pt-2">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <History className="w-4 h-4 text-brand-blue" />
+                Immutable Stock Movement Ledger Entries ({selectedTransferDetail.ledger_movements?.length || 0})
+              </h4>
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-950">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-200/60 dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="p-2.5">Ref #</th>
+                      <th className="p-2.5">Type</th>
+                      <th className="p-2.5">Item & Batch</th>
+                      <th className="p-2.5">From Branch ➔ To Branch</th>
+                      <th className="p-2.5 text-center">Qty</th>
+                      <th className="p-2.5 text-right">Unit Price</th>
+                      <th className="p-2.5">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {(selectedTransferDetail.ledger_movements || []).map((mov, mIdx) => (
+                      <tr key={mIdx} className="hover:bg-slate-100/50 dark:hover:bg-slate-900/50">
+                        <td className="p-2.5 font-mono font-bold text-brand-blue text-[11px]">{mov.reference_no}</td>
+                        <td className="p-2.5 font-bold text-emerald-600 text-[10px]">{mov.transaction_type}</td>
+                        <td className="p-2.5">
+                          <p className="font-semibold text-slate-900 dark:text-slate-100">{mov.item_name}</p>
+                          <p className="text-[10px] font-mono text-slate-400">{mov.batch_code}</p>
+                        </td>
+                        <td className="p-2.5 text-[11px]">
+                          <span className="text-slate-600 dark:text-slate-400">{mov.from_location_name}</span>
+                          <ArrowRight className="w-3 h-3 inline mx-1 text-slate-400" />
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{mov.to_location_name}</span>
+                        </td>
+                        <td className="p-2.5 text-center font-bold font-mono">{mov.qty}</td>
+                        <td className="p-2.5 text-right font-mono">{formatCurrency(mov.unit_price, currencyCode, decimalPlaces)}</td>
+                        <td className="p-2.5 font-mono text-slate-400 text-[10px]">{formatDate(mov.timestamp)}</td>
+                      </tr>
+                    ))}
+                    {(!selectedTransferDetail.ledger_movements || selectedTransferDetail.ledger_movements.length === 0) && (
+                      <tr>
+                        <td colSpan={7} className="p-4 text-center text-slate-400 text-xs">
+                          No ledger movement logs found for reference {selectedTransferDetail.transfer_no}.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

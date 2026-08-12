@@ -222,6 +222,16 @@ class BranchTransferController extends Controller
                                     JOIN `item_batches` b ON sti.batch_id = b.id
                                     WHERE sti.transfer_id = ?");
 
+        $stmtLedger = $pdo->prepare("SELECT sml.*, i.name AS item_name, i.item_code, b.batch_code,
+                                           fl.name AS from_location_name, tl.name AS to_location_name, u.full_name AS created_by_name
+                                    FROM `stock_movements_ledger` sml
+                                    JOIN `items` i ON sml.item_id = i.id
+                                    JOIN `item_batches` b ON sml.batch_id = b.id
+                                    LEFT JOIN `locations` fl ON sml.from_location_id = fl.id
+                                    LEFT JOIN `locations` tl ON sml.to_location_id = tl.id
+                                    JOIN `users` u ON sml.created_by = u.id
+                                    WHERE sml.reference_no = ?");
+
         foreach ($transfers as &$tr) {
             $rawId = (int)$tr['id'];
             $tr['raw_id'] = $rawId;
@@ -246,6 +256,9 @@ class BranchTransferController extends Controller
 
             $stmtItems->execute([$rawId]);
             $tr['items'] = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtLedger->execute([$tr['transfer_no']]);
+            $tr['ledger_movements'] = $stmtLedger->fetchAll(PDO::FETCH_ASSOC);
         }
 
         $this->json([
