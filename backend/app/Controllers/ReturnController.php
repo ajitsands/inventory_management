@@ -410,6 +410,157 @@ class ReturnController extends Controller
     }
 
     /**
+     * Accept Pending Return Request & Forward to Main Store
+     * - Clinic -> Branch return is Accepted (moves stock to Branch)
+     * - Immediately creates a Branch -> Main Store return for the same items
+     */
+    public function acceptAndForwardReturn()
+    {
+        $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
+        $body = $this->getRequestBody();
+
+        $rawReturnId = (int)($body['raw_return_id'] ?? UrlSecurity::decrypt($body['return_id'] ?? null) ?? $body['return_id'] ?? 0);
+
+        if (!$rawReturnId) {
+            $this->error('Return ID is required.', 400);
+            return;
+        }
+
+        $pdo = Model::getDB();
+
+        try {
+            Model::beginTransaction();
+
+            $stmtRet = $pdo->prepare("SELECT * FROM `stock_returns` WHERE id = ? FOR UPDATE");
+            $stmtRet->execute([$rawReturnId]);
+            $returnRow = $stmtRet->fetch(PDO::FETCH_ASSOC);
+
+            if (!$returnRow) {
+                throw new \Exception('Stock Return record not found.');
+            }
+
+            if ($returnRow['status'] !== 'PENDING_ACCEPTANCE') {
+                throw new \Exception('This return request has already been processed or closed.');
+            }
+
+            $toLocId = (int)$returnRow['to_location_id'];
+            $fromLocId = (int)$returnRow['from_location_id'];
+
+            // Find main store location
+            $mainStoreStmt = $pdo->query("SELECT id FROM locations WHERE type = 'MAIN_BRANCH' LIMIT 1");
+            $mainStoreLoc = (int)$mainStoreStmt->fetchColumn();
+            if (!$mainStoreLoc) {
+                throw new \Exception("Main Store location not found.");
+            }
+
+            // Fetch original return items
+            $stmtItems = $pdo->prepare("SELECT * FROM `stock_return_items` WHERE return_id = ?");
+            $stmtItems->execute([$rawReturnId]);
+            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+            // Create new return from Branch to Main Store
+            $newReturnRef = SequenceService::generateNextNumber('return');
+            
+            $stmtNewReturn = $pdo->prepare("INSERT INTO `stock_returns` 
+                (`return_no`, `return_reference`, `return_type`, `from_location_id`, `to_location_id`, `return_reason`, `reason`, `remarks`, `notes`, `status`, `created_by`, `created_at`) 
+                VALUES (?, ?, 'BRANCH_TO_MAIN', ?, ?, 'OTHER', ?, ?, ?, 'PENDING_ACCEPTANCE', ?, NOW())");
+            $stmtNewReturn->execute([$newReturnRef, $newReturnRef, $toLocId, $mainStoreLoc, $returnRow['reason'], $returnRow['notes'], $returnRow['notes'], $user['user_id']]);
+            $newReturnId = (int)$pdo->lastInsertId();
+
+            $stmtNewItem = $pdo->prepare("INSERT INTO `stock_return_items` 
+                (`return_id`, `item_id`, `batch_id`, `batch_code`, `qty`, `quantity`, `unit_price`, `unit_rate`, `subtotal`, `total_amount`, `status`) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')");
+
+            $stmtNewWallet = $pdo->prepare("INSERT INTO `stock_return_wallets` 
+                (`return_id`, `return_item_id`, `target_location_id`, `item_id`, `batch_id`, `quantity`, `wallet_type`, `status`, `created_at`) 
+                VALUES (?, ?, ?, ?, ?, ?, 'PENDING_RETURN', 'PENDING', NOW())");
+
+            foreach ($items as $item) {
+                $rawItemId = (int)$item['item_id'];
+                $rawBatchId = (int)$item['batch_id'];
+                $qty = (int)($item['quantity'] ?? $item['qty']); // use either qty or quantity
+
+                $stmtBatch = $pdo->prepare("SELECT batch_code, expiry_date, purchase_price, selling_price FROM `item_batches` WHERE id = ?");
+                $stmtBatch->execute([$rawBatchId]);
+                $origBatch = $stmtBatch->fetch(PDO::FETCH_ASSOC);
+
+                if (!$origBatch) {
+                    throw new \Exception("Original batch record ID {$rawBatchId} missing.");
+                }
+
+                // 1. Credit stock to current branch (Acceptance)
+                InventoryLedgerService::creditStock($toLocId, $rawBatchId, $qty);
+                InventoryLedgerService::recordMovement(
+                    'STOCK_RETURN_IN',
+                    $returnRow['return_reference'] ?? $returnRow['return_no'],
+                    $rawItemId,
+                    $rawBatchId,
+                    $fromLocId,
+                    $toLocId,
+                    $qty,
+                    (float)$origBatch['purchase_price'],
+                    (float)$origBatch['selling_price'],
+                    $user['user_id']
+                );
+
+                // Update original return item status
+                $stmtUpdItem = $pdo->prepare("UPDATE `stock_return_items` SET `accepted_qty` = ?, `status` = 'ACCEPTED' WHERE id = ?");
+                $stmtUpdItem->execute([$qty, $item['id']]);
+
+                $stmtUpdWallet = $pdo->prepare("UPDATE `stock_return_wallets` SET `status` = 'ACCEPTED' WHERE return_item_id = ?");
+                $stmtUpdWallet->execute([$item['id']]);
+
+                // 2. Immediately Debit stock from current branch to forward (Forwarding)
+                InventoryLedgerService::debitStock($toLocId, $rawBatchId, $qty);
+                InventoryLedgerService::recordMovement(
+                    'STOCK_RETURN_OUT',
+                    $newReturnRef,
+                    $rawItemId,
+                    $rawBatchId,
+                    $toLocId,
+                    $mainStoreLoc,
+                    $qty,
+                    (float)$origBatch['purchase_price'],
+                    (float)$origBatch['selling_price'],
+                    $user['user_id']
+                );
+
+                // Insert new return items
+                $unitRate = (float)($item['unit_rate'] > 0 ? $item['unit_rate'] : $item['unit_price']);
+                $totalAmt = $qty * $unitRate;
+                
+                $stmtNewItem->execute([$newReturnId, $rawItemId, $rawBatchId, $origBatch['batch_code'], $qty, $qty, $unitRate, $unitRate, $totalAmt, $totalAmt]);
+                $newReturnItemId = (int)$pdo->lastInsertId();
+
+                // Insert into Return Wallet of Main Store
+                $stmtNewWallet->execute([$newReturnId, $newReturnItemId, $mainStoreLoc, $rawItemId, $rawBatchId, $qty]);
+            }
+
+            // Update original main return status
+            $stmtUpdReturn = $pdo->prepare("UPDATE `stock_returns` SET `status` = 'ACCEPTED', `action_by` = ?, `action_at` = NOW() WHERE id = ?");
+            $stmtUpdReturn->execute([$user['user_id'], $rawReturnId]);
+
+            Model::commit();
+
+            AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'STOCK_RETURN', 'ACCEPT_AND_FORWARD', null, [
+                'return_id' => $rawReturnId,
+                'forwarded_return_id' => $newReturnId,
+                'return_ref' => $returnRow['return_reference'] ?? $returnRow['return_no'],
+                'forwarded_ref' => $newReturnRef
+            ], $toLocId);
+
+            $this->json([
+                'success' => true,
+                'message' => "Stock Return accepted and forwarded to Main Store successfully as {$newReturnRef}!"
+            ]);
+
+        } catch (\Exception $e) {
+            Model::rollBack();
+            $this->error('Failed to accept and forward stock return: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Reject Pending Return Request
      * - Clinic -> Branch rejection: Moves stock to Clinic Return Reject Wallet
      * - Branch -> Main Store rejection: Moves stock to Damaged Stock & generates Credit Note against Branch

@@ -83,6 +83,7 @@ $router->post('/api/v1/returns/create', ['ReturnController', 'createReturn']);
 $router->post('/api/v1/returns', ['ReturnController', 'createReturn']);
 $router->get('/api/v1/returns/wallet', ['ReturnController', 'getReturnWallet']);
 $router->post('/api/v1/returns/accept', ['ReturnController', 'acceptReturn']);
+$router->post('/api/v1/returns/accept-and-forward', ['ReturnController', 'acceptAndForwardReturn']);
 $router->post('/api/v1/returns/reject', ['ReturnController', 'rejectReturn']);
 $router->get('/api/v1/returns/reject-wallet', ['ReturnController', 'getClinicRejectWallet']);
 $router->post('/api/v1/returns/restore-reject', ['ReturnController', 'restoreRejectStock']);

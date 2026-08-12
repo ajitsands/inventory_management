@@ -91,6 +91,7 @@ export default function StockReturns() {
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [selectedReturnDetail, setSelectedReturnDetail] = useState(null);
   const [selectedCreditNoteDetail, setSelectedCreditNoteDetail] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, icon: null, confirmText: 'Confirm', confirmStyle: 'bg-brand-blue hover:bg-brand-blue/90' });
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
@@ -318,7 +319,7 @@ export default function StockReturns() {
   };
 
   const handleAcceptReturn = async (ret) => {
-    if (!window.confirm(`Accept Stock Return ${ret.return_reference}? Items will be credited into your Available Stock.`)) return;
+    setConfirmModal({ ...confirmModal, isOpen: false });
 
     setSubmitting(true);
     try {
@@ -373,7 +374,7 @@ export default function StockReturns() {
   };
 
   const handleRestoreRejectStock = async (rej) => {
-    if (!window.confirm(`Restore ${rej.quantity} units of ${rej.item_name} (Batch: ${rej.batch_code}) back into Clinic Available Stock?`)) return;
+    setConfirmModal({ ...confirmModal, isOpen: false });
 
     setSubmitting(true);
     try {
@@ -391,6 +392,63 @@ export default function StockReturns() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleAcceptAndForwardReturn = async (ret) => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/returns/accept-and-forward', {
+        method: 'POST',
+        body: JSON.stringify({ return_id: ret.id, raw_return_id: ret.raw_id })
+      });
+
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+        setSelectedWalletReturn(null);
+        loadData();
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to accept and forward return' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const requestAcceptReturn = (ret) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Accept Stock Return (${ret.return_reference})`,
+      message: `Are you sure you want to accept this return? Items will be credited into your Available Stock.`,
+      icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />,
+      confirmText: 'Accept Return',
+      confirmStyle: 'bg-emerald-600 hover:bg-emerald-700',
+      onConfirm: () => handleAcceptReturn(ret)
+    });
+  };
+
+  const requestAcceptAndForward = (ret) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Accept & Forward (${ret.return_reference})`,
+      message: `This will instantly accept the stock into Branch inventory and immediately forward it to the Main Store's Return Wallet. Proceed?`,
+      icon: <ArrowRight className="w-5 h-5 text-indigo-600" />,
+      confirmText: 'Accept & Forward',
+      confirmStyle: 'bg-indigo-600 hover:bg-indigo-700',
+      onConfirm: () => handleAcceptAndForwardReturn(ret)
+    });
+  };
+
+  const requestRestoreRejectStock = (rej) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Restore Rejected Stock`,
+      message: `Restore ${rej.quantity} units of ${rej.item_name} (Batch: ${rej.batch_code}) back into Clinic Available Stock?`,
+      icon: <RefreshCw className="w-5 h-5 text-brand-blue" />,
+      confirmText: 'Restore Stock',
+      confirmStyle: 'bg-brand-blue hover:bg-brand-blue/90',
+      onConfirm: () => handleRestoreRejectStock(rej)
+    });
   };
 
   // Selected Batch Information
@@ -439,13 +497,24 @@ export default function StockReturns() {
         <div className="flex items-center justify-center gap-1.5">
           <button
             type="button"
-            onClick={() => handleAcceptReturn(r)}
+            onClick={() => requestAcceptReturn(r)}
             disabled={submitting}
             className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-2xs"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             Accept Return
           </button>
+          {r.to_location_name !== 'Central Main Warehouse & Branch' && isBranchManager && (
+            <button
+              type="button"
+              onClick={() => requestAcceptAndForward(r)}
+              disabled={submitting}
+              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-2xs"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              Accept & Forward to Main Store
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -496,7 +565,7 @@ export default function StockReturns() {
       render: (r) => (
         <button
           type="button"
-          onClick={() => handleRestoreRejectStock(r)}
+          onClick={() => requestRestoreRejectStock(r)}
           disabled={submitting}
           className="px-3 py-1 rounded-xl bg-brand-blue hover:bg-brand-blue/90 text-white text-xs font-bold transition-all flex items-center gap-1 mx-auto shadow-md"
         >
@@ -1280,6 +1349,56 @@ export default function StockReturns() {
                 className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 text-xs font-bold"
               >
                 Close Credit Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                {confirmModal.icon}
+                {confirmModal.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="py-2 text-sm text-slate-600 dark:text-slate-400 font-medium">
+              {confirmModal.message}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                }}
+                disabled={submitting}
+                className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-md flex items-center justify-center min-w-[120px] ${confirmModal.confirmStyle}`}
+              >
+                {submitting ? (
+                  <span className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"></span>
+                ) : (
+                  confirmModal.confirmText
+                )}
               </button>
             </div>
           </div>
