@@ -49,6 +49,7 @@ export default function UserManagement() {
 
     setSubmitting(true);
     try {
+      const selectedLoc = locations.find(l => l.id === locationId || l.raw_id == locationId);
       const res = await apiFetch('/users', {
         method: 'POST',
         body: JSON.stringify({
@@ -57,7 +58,8 @@ export default function UserManagement() {
           email,
           password,
           role,
-          location_id: locationId
+          location_id: locationId,
+          raw_location_id: selectedLoc ? (selectedLoc.raw_id || selectedLoc.id) : locationId
         })
       });
 
