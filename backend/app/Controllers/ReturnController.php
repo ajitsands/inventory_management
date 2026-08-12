@@ -155,10 +155,11 @@ class ReturnController extends Controller
 
             $returnRef = SequenceService::generateNextNumber('return');
 
+            // Insert with all columns — supports both old (return_no, return_reason, remarks) and new schema
             $stmtReturn = $pdo->prepare("INSERT INTO `stock_returns` 
-                (`return_reference`, `return_type`, `from_location_id`, `to_location_id`, `reason`, `notes`, `status`, `created_by`, `created_at`) 
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING_ACCEPTANCE', ?, NOW())");
-            $stmtReturn->execute([$returnRef, $returnType, $fromLoc, $toLoc, $reason, $notes, $user['user_id']]);
+                (`return_no`, `return_reference`, `return_type`, `from_location_id`, `to_location_id`, `return_reason`, `reason`, `remarks`, `notes`, `status`, `created_by`, `created_at`) 
+                VALUES (?, ?, ?, ?, ?, 'OTHER', ?, ?, ?, 'PENDING_ACCEPTANCE', ?, NOW())");
+            $stmtReturn->execute([$returnRef, $returnRef, $returnType, $fromLoc, $toLoc, $reason, $notes, $reason, $user['user_id']]);
             $returnId = (int)$pdo->lastInsertId();
 
             $stmtItem = $pdo->prepare("INSERT INTO `stock_return_items` 
@@ -259,7 +260,9 @@ class ReturnController extends Controller
             $locId = (int)$user['location_id'];
         }
 
-        $sql = "SELECT sr.*, lfrom.name AS from_location_name, lfrom.code AS from_location_code,
+        $sql = "SELECT sr.*, 
+                       COALESCE(sr.return_reference, sr.return_no) AS return_reference,
+                       lfrom.name AS from_location_name, lfrom.code AS from_location_code,
                        lto.name AS to_location_name, u.full_name AS created_by_name
                 FROM `stock_returns` sr
                 JOIN `locations` lfrom ON sr.from_location_id = lfrom.id
@@ -546,7 +549,8 @@ class ReturnController extends Controller
             $locId = (int)$user['location_id'];
         }
 
-        $sql = "SELECT srr.*, sr.return_reference, i.name AS item_name, i.item_code, i.unit_of_measure, l.name AS clinic_name
+        $sql = "SELECT srr.*, COALESCE(sr.return_reference, sr.return_no) AS return_reference,
+                i.name AS item_name, i.item_code, i.unit_of_measure, l.name AS clinic_name
                 FROM `stock_return_rejections` srr
                 JOIN `stock_returns` sr ON srr.return_id = sr.id
                 JOIN `items` i ON srr.item_id = i.id
@@ -697,7 +701,9 @@ class ReturnController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $pdo = Model::getDB();
 
-        $sql = "SELECT ds.*, sr.return_reference, i.name AS item_name, i.item_code, i.unit_of_measure, l.name AS location_name
+        $sql = "SELECT ds.*, 
+                       COALESCE(sr.return_reference, sr.return_no) AS return_reference,
+                       i.name AS item_name, i.item_code, i.unit_of_measure, l.name AS location_name
                 FROM `damaged_stock` ds
                 JOIN `stock_returns` sr ON ds.return_id = sr.id
                 JOIN `items` i ON ds.item_id = i.id
@@ -730,7 +736,9 @@ class ReturnController extends Controller
             $locId = (int)$user['location_id'];
         }
 
-        $sql = "SELECT sr.*, lfrom.name AS from_location_name, lfrom.code AS from_location_code,
+        $sql = "SELECT sr.*, 
+                       COALESCE(sr.return_reference, sr.return_no) AS return_reference,
+                       lfrom.name AS from_location_name, lfrom.code AS from_location_code,
                        lto.name AS to_location_name, lto.code AS to_location_code,
                        u1.full_name AS created_by_name, u2.full_name AS action_by_name
                 FROM `stock_returns` sr
