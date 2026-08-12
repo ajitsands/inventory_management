@@ -45,7 +45,7 @@ class Controller {
         return $this->decryptArrayParams($data);
     }
 
-    private function decryptArrayParams($data) {
+    protected function decryptArrayParams($data) {
         if (is_array($data)) {
             $result = [];
             foreach ($data as $key => $val) {
