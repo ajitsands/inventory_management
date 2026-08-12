@@ -135,16 +135,24 @@ export default function Dashboard({ setActiveTab }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-900 glass-panel p-5 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
           <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-bold uppercase tracking-wider">FIFO Valuation</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Total Stock Valuation</span>
             <div className="p-2 rounded-xl bg-brand-blue/10 text-brand-blue">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div>
-            <p className="text-xl font-black text-slate-900 dark:text-slate-100 font-heading">
-              {formatCurrency(totalOrgCostValuation, currencyCode, decimalPlaces)}
-            </p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Retail: {formatCurrency(totalOrgSalesValuation, currencyCode, decimalPlaces)}</p>
+          <div className="space-y-1">
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Getting Price (Cost Valuation)</span>
+              <p className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                {formatCurrency(totalOrgCostValuation, currencyCode, decimalPlaces)}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Selling Price Valuation</span>
+              <p className="text-base font-black text-brand-blue dark:text-blue-400 font-mono">
+                {formatCurrency(totalOrgSalesValuation, currencyCode, decimalPlaces)}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -228,15 +236,21 @@ export default function Dashboard({ setActiveTab }) {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+              <div className="grid grid-cols-3 gap-2 text-xs pt-1">
                 <div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Total Units</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Total Units</p>
                   <p className="font-bold text-slate-900 dark:text-slate-100">{loc.total_units || 0} units</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Cost Valuation</p>
-                  <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Getting Price (Cost)</p>
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">
                     {formatCurrency(loc.total_cost_valuation, currencyCode, decimalPlaces)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Total Selling Price</p>
+                  <p className="font-bold text-brand-blue dark:text-blue-400 font-mono text-[11px]">
+                    {formatCurrency(loc.total_sales_valuation, currencyCode, decimalPlaces)}
                   </p>
                 </div>
               </div>
