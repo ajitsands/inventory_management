@@ -81,13 +81,14 @@ export default function AuditTrailPage() {
         </div>
       </div>
 
-      {/* Pure White DataTable */}
+      {/* Pure White DataTable with Increased Height */}
       <DataTable
         title="System Event Audit Trail Grid"
         columns={auditColumns}
         data={logs}
         searchable={true}
-        defaultPageSize={10}
+        defaultPageSize={25}
+        minHeight="min-h-[550px]"
       />
     </div>
   );

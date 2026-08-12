@@ -1526,7 +1526,7 @@ export default function SubBranchInvoicing() {
             {/* Tab 1: Financial Invoices & Payment Ledger */}
             {branchLedgerTab === 'invoices' && (
               <div className="space-y-3">
-                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-y-auto max-h-[520px] bg-white dark:bg-slate-900 shadow-inner">
                   <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
                     <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                       <tr>
@@ -1623,7 +1623,7 @@ export default function SubBranchInvoicing() {
             {/* Tab 2: Stock Movement Trajectory Ledger */}
             {branchLedgerTab === 'movements' && (
               <div className="space-y-3">
-                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-y-auto max-h-[520px] bg-white dark:bg-slate-900 shadow-inner">
                   <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
                     <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                       <tr>

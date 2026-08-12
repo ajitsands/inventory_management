@@ -9,7 +9,8 @@ export default function DataTable({
   emptyMessage = "No records found.",
   title,
   subtitle,
-  actions
+  actions,
+  minHeight = "min-h-[400px]"
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortColumn, setSortColumn] = useState(null);
@@ -107,7 +108,7 @@ export default function DataTable({
       )}
 
       {/* Main High-Performance Pure White Table */}
-      <div className="overflow-x-auto">
+      <div className={`overflow-x-auto ${minHeight}`}>
         <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
           <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider text-[11px]">
             <tr>
@@ -173,6 +174,8 @@ export default function DataTable({
             <option value={25}>25</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
+            <option value={250}>250</option>
+            <option value={500}>500</option>
           </select>
 
           <span>
