@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { Building, Plus, Trash2, CheckCircle2, AlertCircle, HelpCircle, X } from 'lucide-react';
 
 export default function ClinicStockTransfer() {
+  const { user } = useAuth();
   const [subBranches, setSubBranches] = useState([]);
   const [clinics, setClinics] = useState([]);
   const [subBatches, setSubBatches] = useState([]);
@@ -31,7 +33,13 @@ export default function ClinicStockTransfer() {
       setSubBranches(subs);
       setClinics(clns);
 
-      if (subs.length > 0) {
+      const userLocId = user?.location_id || user?.raw_location_id;
+      const mySubBranch = subs.find(s => s.id == userLocId || s.raw_id == userLocId);
+
+      if (mySubBranch) {
+        setFromLocationId(mySubBranch.id);
+        fetchSubBatches(mySubBranch.id, mySubBranch);
+      } else if (subs.length > 0) {
         setFromLocationId(subs[0].id);
         fetchSubBatches(subs[0].id, subs[0]);
       }
