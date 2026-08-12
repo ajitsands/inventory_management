@@ -113,14 +113,43 @@ export default function ClinicStockTransfer() {
       return false;
     }
 
+    const batchTotals = {};
+    const batchDuplicateCounts = {};
+
+    lineItems.forEach(l => {
+      if (l.batch_id) {
+        const bId = String(l.batch_id);
+        const q = parseInt(l.qty) || 0;
+        batchTotals[bId] = (batchTotals[bId] || 0) + q;
+        batchDuplicateCounts[bId] = (batchDuplicateCounts[bId] || 0) + 1;
+      }
+    });
+
     for (let i = 0; i < lineItems.length; i++) {
       const l = lineItems[i];
       if (!l.batch_id || !l.qty || l.qty <= 0) {
         setMessage({ type: 'error', text: `Please select a batch and valid quantity for line #${i + 1}.` });
         return false;
       }
-      if (l.qty > l.available) {
-        setMessage({ type: 'error', text: `Line #${i + 1}: Qty (${l.qty}) exceeds available stock (${l.available}) at Sub Branch!` });
+
+      const bId = String(l.batch_id);
+      const cumulativeQty = batchTotals[bId] || 0;
+      const batchCode = l.batch_code || `Line #${i + 1}`;
+      const availStock = l.available || 0;
+
+      if (batchDuplicateCounts[bId] > 1) {
+        setMessage({
+          type: 'error',
+          text: `Duplicate batch entry blocked: Batch '${batchCode}' is selected on multiple lines! Cumulative requested quantity (${cumulativeQty}) exceeds available stock (${availStock} units). Please combine into a single line item.`
+        });
+        return false;
+      }
+
+      if (cumulativeQty > availStock) {
+        setMessage({
+          type: 'error',
+          text: `Clinic transfer blocked: Cumulative requested quantity (${cumulativeQty}) for batch '${batchCode}' exceeds available stock (${availStock} units).`
+        });
         return false;
       }
     }
@@ -251,52 +280,96 @@ export default function ClinicStockTransfer() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                {lineItems.map((line, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all bg-white dark:bg-slate-900">
-                    <td className="p-2.5 min-w-[420px]">
-                      <SearchableSelect
-                        placeholder="Search batch or item..."
-                        options={subBatches.map(b => ({
-                          value: b.batch_id,
-                          label: b.item_name,
-                          sublabel: `Batch: ${b.batch_code} (Exp: ${b.expiry_date}) [Avail: ${b.quantity_available}]`
-                        }))}
-                        value={line.batch_id}
-                        onChange={(val) => handleBatchSelect(idx, val)}
-                      />
-                    </td>
+                {(() => {
+                  const batchTotals = {};
+                  const batchDuplicateCounts = {};
 
-                    <td className="p-2.5 w-36">
-                      <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
-                        {line.batch_code || '-'}
-                      </span>
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-900 dark:text-slate-200">{line.available || 0} units</td>
+                  lineItems.forEach(l => {
+                    if (l.batch_id) {
+                      const bId = String(l.batch_id);
+                      const q = parseInt(l.qty) || 0;
+                      batchTotals[bId] = (batchTotals[bId] || 0) + q;
+                      batchDuplicateCounts[bId] = (batchDuplicateCounts[bId] || 0) + 1;
+                    }
+                  });
 
-                    <td className="p-2.5">
-                      <input
-                        type="number"
-                        min="1"
-                        max={line.available || 9999}
-                        required
-                        value={line.qty}
-                        onChange={(e) => handleQtyChange(idx, e.target.value)}
-                        onKeyDown={(e) => handleKeyDownOnQty(e, idx)}
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
-                      />
-                    </td>
+                  return lineItems.map((line, idx) => {
+                    const bId = String(line.batch_id || '');
+                    const cumulativeQty = batchTotals[bId] || 0;
+                    const maxStock = line.available || 0;
+                    const isDuplicateEntry = line.batch_id && (batchDuplicateCounts[bId] > 1);
+                    const isCumulativeOverStock = line.batch_id && (cumulativeQty > maxStock);
+                    const isRowWarning = isDuplicateEntry || isCumulativeOverStock;
 
-                    <td className="p-2.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeLine(idx)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                    return (
+                      <tr
+                        key={idx}
+                        className={`transition-all ${
+                          isRowWarning
+                            ? 'bg-rose-50/90 dark:bg-rose-950/60 border-2 border-rose-500'
+                            : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <td className="p-2.5 min-w-[420px]">
+                          <SearchableSelect
+                            placeholder="Search batch or item..."
+                            options={subBatches.map(b => ({
+                              value: b.batch_id,
+                              label: b.item_name,
+                              sublabel: `Batch: ${b.batch_code} (Exp: ${b.expiry_date}) [Avail: ${b.quantity_available}]`
+                            }))}
+                            value={line.batch_id}
+                            onChange={(val) => handleBatchSelect(idx, val)}
+                          />
+                          {isRowWarning && (
+                            <div className="mt-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 bg-rose-100 dark:bg-rose-900/60 p-2 rounded-lg border border-rose-300 dark:border-rose-800 animate-in fade-in duration-150">
+                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                              <span>
+                                {isDuplicateEntry && isCumulativeOverStock
+                                  ? `⚠️ DUPLICATE ENTRY BLOCKED! Total requested across lines (${cumulativeQty}) EXCEEDS available stock (${maxStock} units).`
+                                  : isDuplicateEntry
+                                  ? `⚠️ DUPLICATE ENTRY BLOCKED! Selected multiple times (Cumulative requested: ${cumulativeQty} / Available stock: ${maxStock} units).`
+                                  : `⚠️ STOCK EXCEEDED! Requested (${cumulativeQty}) exceeds available stock (${maxStock} units).`}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="p-2.5">
+                          <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
+                            {line.batch_code || '-'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-900 dark:text-slate-200">{line.available || 0} units</td>
+
+                        <td className="p-2.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max={line.available || 9999}
+                            required
+                            value={line.qty}
+                            onChange={(e) => handleQtyChange(idx, e.target.value)}
+                            onKeyDown={(e) => handleKeyDownOnQty(e, idx)}
+                            className={`w-full bg-slate-50 dark:bg-slate-900 border rounded-xl px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-bold ${
+                              isRowWarning ? 'border-rose-500 text-rose-600 dark:text-rose-400 font-extrabold bg-rose-50/50' : 'border-slate-300 dark:border-slate-800 focus:border-brand-blue'
+                            }`}
+                          />
+                        </td>
+
+                        <td className="p-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeLine(idx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

@@ -202,14 +202,45 @@ export default function SubBranchInvoicing() {
       setMessage({ type: 'error', text: 'Please select a destination sub-branch location.' });
       return false;
     }
+
+    const batchQtyTotals = {};
+    const batchDuplicateCounts = {};
+
+    lineItems.forEach(l => {
+      if (l.batch_id) {
+        const bId = String(l.batch_id);
+        const qty = parseInt(l.qty) || 0;
+        batchQtyTotals[bId] = (batchQtyTotals[bId] || 0) + qty;
+        batchDuplicateCounts[bId] = (batchDuplicateCounts[bId] || 0) + 1;
+      }
+    });
+
     for (let i = 0; i < lineItems.length; i++) {
       const line = lineItems[i];
       if (!line.batch_id || line.qty <= 0) {
         setMessage({ type: 'error', text: `Line #${i + 1} requires a valid batch selection and transfer quantity > 0.` });
         return false;
       }
-      if (line.qty > line.max_qty) {
-        setMessage({ type: 'error', text: `Line #${i + 1} quantity (${line.qty}) exceeds available stock (${line.max_qty}).` });
+
+      const bId = String(line.batch_id);
+      const cumulativeQty = batchQtyTotals[bId] || 0;
+      const selectedBatch = availableStock.find(b => (b.batch_id || b.id) == line.batch_id);
+      const batchCode = selectedBatch?.batch_code || `Batch #${bId}`;
+      const availStock = line.max_qty || selectedBatch?.quantity_available || 0;
+
+      if (batchDuplicateCounts[bId] > 1) {
+        setMessage({
+          type: 'error',
+          text: `Duplicate batch entry blocked: Batch '${batchCode}' is selected on multiple lines! Cumulative requested quantity (${cumulativeQty}) exceeds available stock (${availStock} units). Please combine into a single line item.`
+        });
+        return false;
+      }
+
+      if (cumulativeQty > availStock) {
+        setMessage({
+          type: 'error',
+          text: `Stock transfer blocked: Cumulative requested quantity (${cumulativeQty}) for batch '${batchCode}' exceeds available stock (${availStock} units).`
+        });
         return false;
       }
     }
@@ -741,48 +772,89 @@ export default function SubBranchInvoicing() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                {lineItems.map((line, index) => {
-                  const price = parseFloat(line.unit_price || 0);
-                  const qty = parseInt(line.qty) || 0;
-                  const rawTotal = price * qty;
-                  const lineSubtotal = isNoVat
-                    ? rawTotal
-                    : isTaxInclusive
-                    ? rawTotal / (1 + (vatRate / 100))
-                    : rawTotal;
+                {(() => {
+                  const batchQtyTotals = {};
+                  const batchDuplicateCounts = {};
 
-                  return (
-                    <tr key={index} className="bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
-                      <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
+                  lineItems.forEach(l => {
+                    if (l.batch_id) {
+                      const bId = String(l.batch_id);
+                      const qty = parseInt(l.qty) || 0;
+                      batchQtyTotals[bId] = (batchQtyTotals[bId] || 0) + qty;
+                      batchDuplicateCounts[bId] = (batchDuplicateCounts[bId] || 0) + 1;
+                    }
+                  });
 
-                      <td className="p-1 min-w-[420px]">
-                        <SearchableSelect
-                          placeholder="Select Main Branch Item Batch..."
-                          options={availableStock.map(b => ({
-                            value: b.batch_id || b.id,
-                            label: `${b.item_name} [${b.batch_code}]`,
-                            sublabel: `Code: ${b.item_code} | Exp: ${b.expiry_date} | Avail: ${b.quantity_available}`
-                          }))}
-                          value={line.batch_id}
-                          onChange={(val) => handleLineChange(index, 'batch_id', val)}
-                        />
-                      </td>
+                  return lineItems.map((line, index) => {
+                    const price = parseFloat(line.unit_price || 0);
+                    const qty = parseInt(line.qty) || 0;
+                    const rawTotal = price * qty;
+                    const lineSubtotal = isNoVat
+                      ? rawTotal
+                      : isTaxInclusive
+                      ? rawTotal / (1 + (vatRate / 100))
+                      : rawTotal;
 
-                      <td className="p-2.5 text-center font-mono font-bold text-slate-600 dark:text-slate-400">
-                        {line.max_qty || 0}
-                      </td>
+                    const bId = String(line.batch_id || '');
+                    const cumulativeQty = batchQtyTotals[bId] || 0;
+                    const maxStock = line.max_qty || 0;
+                    const isDuplicateEntry = line.batch_id && (batchDuplicateCounts[bId] > 1);
+                    const isCumulativeOverStock = line.batch_id && (cumulativeQty > maxStock);
+                    const isRowWarning = isDuplicateEntry || isCumulativeOverStock;
 
-                      <td className="p-1 text-center">
-                        <input
-                          type="number"
-                          min="1"
-                          max={line.max_qty || 9999}
-                          value={line.qty}
-                          onKeyDown={(e) => handleKeyDownOnQty(e, index)}
-                          onChange={(e) => handleLineChange(index, 'qty', parseInt(e.target.value) || 1)}
-                          className="w-20 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-1.5 text-xs text-center font-bold"
-                        />
-                      </td>
+                    return (
+                      <tr
+                        key={index}
+                        className={`transition-all ${
+                          isRowWarning
+                            ? 'bg-rose-50/90 dark:bg-rose-950/60 border-2 border-rose-500'
+                            : 'bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-950/50'
+                        }`}
+                      >
+                        <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
+
+                        <td className="p-1 min-w-[420px]">
+                          <SearchableSelect
+                            placeholder="Select Main Branch Item Batch..."
+                            options={availableStock.map(b => ({
+                              value: b.batch_id || b.id,
+                              label: `${b.item_name} [${b.batch_code}]`,
+                              sublabel: `Code: ${b.item_code} | Exp: ${b.expiry_date} | Avail: ${b.quantity_available}`
+                            }))}
+                            value={line.batch_id}
+                            onChange={(val) => handleLineChange(index, 'batch_id', val)}
+                          />
+                          {isRowWarning && (
+                            <div className="mt-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 bg-rose-100 dark:bg-rose-900/60 p-2 rounded-lg border border-rose-300 dark:border-rose-800 animate-in fade-in duration-150">
+                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                              <span>
+                                {isDuplicateEntry && isCumulativeOverStock
+                                  ? `⚠️ DUPLICATE ENTRY BLOCKED! Total requested across lines (${cumulativeQty}) EXCEEDS available stock (${maxStock} units).`
+                                  : isDuplicateEntry
+                                  ? `⚠️ DUPLICATE ENTRY BLOCKED! Selected multiple times (Cumulative requested: ${cumulativeQty} / Available stock: ${maxStock} units).`
+                                  : `⚠️ STOCK EXCEEDED! Requested (${cumulativeQty}) exceeds available stock (${maxStock} units).`}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="p-2.5 text-center font-mono font-bold text-slate-600 dark:text-slate-400">
+                          {line.max_qty || 0}
+                        </td>
+
+                        <td className="p-1 text-center">
+                          <input
+                            type="number"
+                            min="1"
+                            max={line.max_qty || 9999}
+                            value={line.qty}
+                            onKeyDown={(e) => handleKeyDownOnQty(e, index)}
+                            onChange={(e) => handleLineChange(index, 'qty', parseInt(e.target.value) || 1)}
+                            className={`w-20 bg-slate-50 dark:bg-slate-900 border rounded-lg p-1.5 text-xs text-center font-bold ${
+                              isRowWarning ? 'border-rose-500 text-rose-600 dark:text-rose-400 font-extrabold bg-rose-50/50' : 'border-slate-300 dark:border-slate-800'
+                            }`}
+                          />
+                        </td>
 
                       <td className="p-1 text-right">
                         <input
@@ -810,7 +882,8 @@ export default function SubBranchInvoicing() {
                       </td>
                     </tr>
                   );
-                })}
+                });
+                })()}
               </tbody>
             </table>
           </div>

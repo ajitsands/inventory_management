@@ -46,6 +46,43 @@ class BranchTransferController extends Controller
             $vatAmount = 0.00;
             $grandTotal = 0.00;
 
+            // Check cumulative requested quantity per batch against available stock
+            $batchTotals = [];
+            $batchDuplicateCounts = [];
+
+            foreach ($body['items'] as $idx => $line) {
+                $rawBatchId = UrlSecurity::decrypt($line['batch_id'] ?? null);
+                $bId = !empty($rawBatchId) ? (int)$rawBatchId : (int)($line['raw_batch_id'] ?? $line['batch_id'] ?? 0);
+                $qty = (int)($line['qty'] ?? 0);
+                if ($bId > 0 && $qty > 0) {
+                    $batchTotals[$bId] = ($batchTotals[$bId] ?? 0) + $qty;
+                    $batchDuplicateCounts[$bId] = ($batchDuplicateCounts[$bId] ?? 0) + 1;
+                }
+            }
+
+            foreach ($batchTotals as $bId => $totalReqQty) {
+                $stmtCheck = $pdo->prepare("SELECT ib.batch_code, COALESCE(lbs.quantity_available, 0) as avail 
+                                           FROM `item_batches` ib 
+                                           LEFT JOIN `location_batch_stock` lbs ON lbs.batch_id = ib.id AND lbs.location_id = ? 
+                                           WHERE ib.id = ?");
+                $stmtCheck->execute([$fromLoc, $bId]);
+                $batchStock = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+                $batchCode = $batchStock['batch_code'] ?? "Batch #{$bId}";
+                $availQty = (int)($batchStock['avail'] ?? 0);
+
+                if (($batchDuplicateCounts[$bId] ?? 0) > 1) {
+                    Model::rollBack();
+                    $this->error("Duplicate batch entry blocked: Batch '{$batchCode}' is selected on multiple lines! Cumulative requested ({$totalReqQty}) exceeds available stock ({$availQty}). Please combine into a single line.", 400);
+                    return;
+                }
+
+                if ($totalReqQty > $availQty) {
+                    Model::rollBack();
+                    $this->error("Stock transfer blocked: Cumulative requested quantity ({$totalReqQty}) for batch '{$batchCode}' exceeds available stock ({$availQty}) at Main Store.", 400);
+                    return;
+                }
+            }
+
             foreach ($body['items'] as $idx => $line) {
                 $rawItemId = UrlSecurity::decrypt($line['item_id'] ?? null);
                 $itemId = !empty($rawItemId) ? (int)$rawItemId : (int)($line['raw_item_id'] ?? $line['item_id'] ?? 0);
