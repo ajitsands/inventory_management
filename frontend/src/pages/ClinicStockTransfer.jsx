@@ -244,12 +244,21 @@ export default function ClinicStockTransfer() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Sub-Branch *</label>
-            <SearchableSelect
-              placeholder="Search Sub-Branch..."
-              options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})`, sublabel: sb.type }))}
-              value={fromLocationId}
-              onChange={(val) => handleFromLocationChange(val)}
-            />
+            {user?.role === 'ADMIN' ? (
+              <SearchableSelect
+                placeholder="Search Sub-Branch..."
+                options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})`, sublabel: sb.type }))}
+                value={fromLocationId}
+                onChange={(val) => handleFromLocationChange(val)}
+              />
+            ) : (
+              <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between shadow-xs h-10">
+                <span>{selectedFromObj ? `${selectedFromObj.name} (${selectedFromObj.code})` : 'Assigned Sub-Branch'}</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-brand-blue/10 text-brand-blue border border-brand-blue/30 uppercase">
+                  Locked to Logged-in Branch
+                </span>
+              </div>
+            )}
           </div>
 
           <div>

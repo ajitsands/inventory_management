@@ -565,12 +565,21 @@ export default function StockReturns() {
                 onChange={handleSourceLocationChange}
               />
             ) : returnType === 'BRANCH_TO_MAIN' ? (
-              <SearchableSelect
-                placeholder="Select Source Sub-Branch..."
-                options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})` }))}
-                value={fromLocationId}
-                onChange={handleSourceLocationChange}
-              />
+              isAdmin ? (
+                <SearchableSelect
+                  placeholder="Select Source Sub-Branch..."
+                  options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})` }))}
+                  value={fromLocationId}
+                  onChange={handleSourceLocationChange}
+                />
+              ) : (
+                <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between shadow-xs h-10">
+                  <span>{subBranches.find(s => s.id === fromLocationId || s.raw_id == fromLocationId)?.name || 'Assigned Sub-Branch'}</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-brand-blue/10 text-brand-blue border border-brand-blue/30 uppercase">
+                    Locked to Logged-in Branch
+                  </span>
+                </div>
+              )
             ) : (
               <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
                 Central Main Warehouse (LOC-MAIN-01)
