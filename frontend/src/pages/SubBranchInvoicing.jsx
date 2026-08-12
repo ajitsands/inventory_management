@@ -131,7 +131,7 @@ export default function SubBranchInvoicing() {
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
-  const isNoVat = settings.vat_calculation_mode === 'NO_VAT';
+  const isNoVat = settings.vat_calculation_mode === 'NO_VAT' || parseFloat(settings.vat_percent || 0) === 0;
   const isTaxInclusive = !isNoVat && settings.price_tax_type === 'INCLUSIVE';
   const vatRate = isNoVat ? 0 : parseFloat(settings.vat_percent || 10.00);
 
@@ -696,10 +696,10 @@ export default function SubBranchInvoicing() {
             </h3>
             <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
               isNoVat
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300'
+                ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40'
                 : 'bg-blue-50 dark:bg-blue-950 text-brand-blue border-blue-200'
             }`}>
-              {isNoVat ? '🚫 No VAT (Tax Exempt)' : `VAT Rate: ${vatRate}% (${isTaxInclusive ? 'Tax Inclusive' : 'Tax Exclusive'})`}
+              {isNoVat ? '🚫 NO VAT (0% Tax Exempt)' : `VAT Rate: ${vatRate}% (${isTaxInclusive ? 'Tax Inclusive' : 'Tax Exclusive'})`}
             </span>
           </div>
 
