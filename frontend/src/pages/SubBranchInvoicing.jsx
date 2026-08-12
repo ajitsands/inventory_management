@@ -6,17 +6,36 @@ import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
 import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2, HelpCircle, X, DollarSign, FileText, Calendar, Wallet, Receipt, Filter, History, ArrowRight, BookOpen, Landmark, CreditCard } from 'lucide-react';
 
+function getFirstDayOfCurrentMonth() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+}
+
+function getLastDayOfCurrentMonth() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+}
+
 export default function SubBranchInvoicing() {
   const [subBranches, setSubBranches] = useState([]);
   const [availableStock, setAvailableStock] = useState([]);
   const [transfers, setTransfers] = useState([]);
-  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
+  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3', date_format: 'DD/MM/YYYY' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
   // Filter State
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
+
+  // Date Filter State (Defaults to Current Month)
+  const [startDateFilter, setStartDateFilter] = useState(getFirstDayOfCurrentMonth());
+  const [endDateFilter, setEndDateFilter] = useState(getLastDayOfCurrentMonth());
 
   // Form State
   const [toLocationId, setToLocationId] = useState('');
@@ -40,6 +59,26 @@ export default function SubBranchInvoicing() {
   // Branch Ledger Trajectory Modal State
   const [showBranchLedgerModal, setShowBranchLedgerModal] = useState(false);
   const [branchLedgerTab, setBranchLedgerTab] = useState('invoices'); // 'invoices' | 'movements'
+
+  const handlePresetThisMonth = () => {
+    setStartDateFilter(getFirstDayOfCurrentMonth());
+    setEndDateFilter(getLastDayOfCurrentMonth());
+  };
+
+  const handlePresetLastMonth = () => {
+    const now = new Date();
+    const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const year = prevMonthDate.getFullYear();
+    const month = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, prevMonthDate.getMonth() + 1, 0).getDate();
+    setStartDateFilter(`${year}-${month}-01`);
+    setEndDateFilter(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+  };
+
+  const handlePresetAllTime = () => {
+    setStartDateFilter('');
+    setEndDateFilter('');
+  };
 
   function createEmptyLine() {
     return {
@@ -240,10 +279,19 @@ export default function SubBranchInvoicing() {
     }
   };
 
-  // Filter transfers list by Branch Filter
+  const dateFormat = settings.date_format || 'DD/MM/YYYY';
+
+  // Helper to extract YYYY-MM-DD string from transfer date
+  const getTransferDateStr = (t) => {
+    const raw = t.dispatched_at || t.created_at;
+    if (!raw) return '';
+    return String(raw).substring(0, 10);
+  };
+
+  // 1. Filter transfers list by Branch Filter first
   const branchInvoicedTransfers = transfers.filter(t => t.transfer_type === 'BRANCH_INVOICED');
 
-  const filteredTransfers = branchInvoicedTransfers.filter(t => {
+  const branchFilteredTransfers = branchInvoicedTransfers.filter(t => {
     if (selectedBranchFilter === 'ALL') return true;
     return (
       String(t.to_location_id) === String(selectedBranchFilter) ||
@@ -251,12 +299,41 @@ export default function SubBranchInvoicing() {
     );
   });
 
-  // Calculate Metrics Across Filtered / All Sub-Branches
+  // 2. Prior Period Transfers (Before startDateFilter) -> Carry Forward Balance
+  const priorPeriodTransfers = branchFilteredTransfers.filter(t => {
+    if (!startDateFilter) return false;
+    const tDate = getTransferDateStr(t);
+    return tDate < startDateFilter;
+  });
+
+  // 3. Current Selected Period Transfers (Between startDateFilter and endDateFilter)
+  const filteredTransfers = branchFilteredTransfers.filter(t => {
+    const tDate = getTransferDateStr(t);
+    if (startDateFilter && tDate < startDateFilter) return false;
+    if (endDateFilter && tDate > endDateFilter) return false;
+    return true;
+  });
+
+  // Carry Forward Metrics from Prior Periods
+  const carryForwardMetrics = priorPeriodTransfers.reduce((acc, tr) => {
+    const grand = parseFloat(tr.total_val || 0);
+    const sub = parseFloat(tr.subtotal || (grand / 1.10));
+    const vat = parseFloat(tr.vat_amount || (grand - sub));
+    const paid = parseFloat(tr.paid_amount || 0);
+    const pending = parseFloat(tr.pending_balance || Math.max(0, grand - paid));
+
+    acc.totalGrand += grand;
+    acc.totalPaid += paid;
+    acc.totalPending += pending;
+    return acc;
+  }, { totalGrand: 0, totalPaid: 0, totalPending: 0 });
+
+  // Current Selected Period Metrics
   const summaryMetrics = filteredTransfers.reduce((acc, tr) => {
     const grand = parseFloat(tr.total_val || 0);
     const sub = parseFloat(tr.subtotal || (grand / 1.10));
     const vat = parseFloat(tr.vat_amount || (grand - sub));
-    const paid = parseFloat(tr.paid_amount || grand);
+    const paid = parseFloat(tr.paid_amount || 0);
     const pending = parseFloat(tr.pending_balance || Math.max(0, grand - paid));
 
     acc.totalGrand += grand;
@@ -266,6 +343,9 @@ export default function SubBranchInvoicing() {
     acc.totalPending += pending;
     return acc;
   }, { totalGrand: 0, totalSubtotal: 0, totalVat: 0, totalPaid: 0, totalPending: 0 });
+
+  // Net Total Outstanding Balance = Carry Forward Pending + Current Period Pending
+  const netTotalOutstanding = carryForwardMetrics.totalPending + summaryMetrics.totalPending;
 
   const destinationBranchObj = subBranches.find(b => b.id === toLocationId || b.raw_id == toLocationId);
   const selectedBranchObj = subBranches.find(b => b.id === selectedBranchFilter || b.raw_id == selectedBranchFilter);
@@ -294,7 +374,7 @@ export default function SubBranchInvoicing() {
     {
       header: 'Dispatch Date',
       accessor: 'dispatched_at',
-      render: (t) => <span className="text-slate-500 font-mono">{formatDate(t.dispatched_at)}</span>
+      render: (t) => <span className="text-slate-500 font-mono">{formatDate(t.dispatched_at, dateFormat)}</span>
     },
     {
       header: `Net Subtotal (${currencyCode})`,
@@ -439,6 +519,73 @@ export default function SubBranchInvoicing() {
         </div>
       </div>
 
+      {/* Date Between Filter & Presets Toolbar */}
+      <div className="bg-white dark:bg-slate-900 glass-panel p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-center gap-3 text-xs w-full md:w-auto flex-wrap">
+          <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+            <Calendar className="w-4 h-4 text-brand-blue" />
+            <span>Filter Period (Date Between):</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={startDateFilter}
+              onChange={(e) => setStartDateFilter(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+            />
+            <span className="text-slate-400 font-bold">to</span>
+            <input
+              type="date"
+              value={endDateFilter}
+              onChange={(e) => setEndDateFilter(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+            />
+          </div>
+
+          {/* Quick Date Presets */}
+          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={handlePresetThisMonth}
+              className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                startDateFilter === getFirstDayOfCurrentMonth() && endDateFilter === getLastDayOfCurrentMonth()
+                  ? 'bg-brand-blue text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              This Month (Default)
+            </button>
+            <button
+              type="button"
+              onClick={handlePresetLastMonth}
+              className="px-3 py-1 rounded-xl text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+            >
+              Last Month
+            </button>
+            <button
+              type="button"
+              onClick={handlePresetAllTime}
+              className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                !startDateFilter && !endDateFilter
+                  ? 'bg-brand-blue text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+        </div>
+
+        {/* Date Display Format Indicator */}
+        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 self-end md:self-auto">
+          <span>Admin Display Format:</span>
+          <span className="font-bold text-brand-blue bg-blue-50 dark:bg-blue-950 px-2.5 py-0.5 rounded-lg border border-blue-200 dark:border-blue-800">
+            {dateFormat}
+          </span>
+        </div>
+      </div>
+
       {message && (
         <div className={`p-4 rounded-xl border text-xs flex items-center gap-2 ${
           message.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/80 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300'
@@ -448,66 +595,70 @@ export default function SubBranchInvoicing() {
         </div>
       )}
 
-      {/* ADMIN FINANCIAL METRICS DASHBOARD CARDS */}
+      {/* ADMIN FINANCIAL METRICS DASHBOARD CARDS WITH CARRY FORWARD OPENING BALANCE */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Grand Invoiced */}
+        {/* Card 1: Carry Forward (Opening) Balance */}
+        <div className="bg-amber-50/50 dark:bg-amber-950/30 glass-panel p-4 rounded-2xl border border-amber-200 dark:border-amber-800/60 space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Carry Forward Opening</span>
+            <History className="w-4 h-4 text-amber-500" />
+          </div>
+          <p className="text-lg font-black text-amber-700 dark:text-amber-300 font-heading">
+            {formatCurrency(carryForwardMetrics.totalPending, currencyCode, decimalPlaces)}
+          </p>
+          <p className="text-[10px] text-amber-600/80 font-semibold truncate">
+            {startDateFilter ? `Unpaid prior to ${formatDate(startDateFilter, dateFormat)}` : 'No date filter limit'}
+          </p>
+        </div>
+
+        {/* Card 2: Selected Period Invoiced */}
         <div className="bg-white dark:bg-slate-900 glass-panel p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Invoiced</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Period Invoiced</span>
             <Receipt className="w-4 h-4 text-brand-blue" />
           </div>
           <p className="text-lg font-black text-slate-900 dark:text-slate-100 font-heading">
             {formatCurrency(summaryMetrics.totalGrand, currencyCode, decimalPlaces)}
           </p>
-          <p className="text-[10px] text-slate-500">Grand Total across all invoices</p>
+          <p className="text-[10px] text-slate-500 font-medium">Invoiced in selected range</p>
         </div>
 
-        {/* Total Net Subtotal */}
+        {/* Card 3: Period Payment Received */}
         <div className="bg-white dark:bg-slate-900 glass-panel p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Net (Excl. VAT)</span>
-            <FileText className="w-4 h-4 text-blue-500" />
-          </div>
-          <p className="text-lg font-black text-slate-800 dark:text-slate-200 font-heading">
-            {formatCurrency(summaryMetrics.totalSubtotal, currencyCode, decimalPlaces)}
-          </p>
-          <p className="text-[10px] text-slate-500">Net goods subtotal value</p>
-        </div>
-
-        {/* Separated Total VAT */}
-        <div className="bg-white dark:bg-slate-900 glass-panel p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total VAT ({vatRate}%)</span>
-            <Receipt className="w-4 h-4 text-purple-500" />
-          </div>
-          <p className="text-lg font-black text-purple-600 dark:text-purple-400 font-heading">
-            {formatCurrency(summaryMetrics.totalVat, currencyCode, decimalPlaces)}
-          </p>
-          <p className="text-[10px] text-purple-500/80 font-semibold">Separated VAT tax portion</p>
-        </div>
-
-        {/* Total Payment Received */}
-        <div className="bg-white dark:bg-slate-900 glass-panel p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Payment Received</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Period Payments</span>
             <Wallet className="w-4 h-4 text-emerald-500" />
           </div>
           <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-heading">
             {formatCurrency(summaryMetrics.totalPaid, currencyCode, decimalPlaces)}
           </p>
-          <p className="text-[10px] text-emerald-600/80 font-semibold">Collected branch payments</p>
+          <p className="text-[10px] text-emerald-600/80 font-semibold">Collected in selected range</p>
         </div>
 
-        {/* Total Pending Balance */}
+        {/* Card 4: Period Pending Balance */}
         <div className="bg-white dark:bg-slate-900 glass-panel p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Pending Balance</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Period Pending</span>
             <DollarSign className="w-4 h-4 text-rose-500" />
           </div>
           <p className={`text-lg font-black font-heading ${summaryMetrics.totalPending > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
             {formatCurrency(summaryMetrics.totalPending, currencyCode, decimalPlaces)}
           </p>
-          <p className="text-[10px] text-rose-500/80 font-semibold">Outstanding balance due</p>
+          <p className="text-[10px] text-rose-500/80 font-semibold">Unpaid in selected range</p>
+        </div>
+
+        {/* Card 5: Net Total Outstanding Balance (Carry Forward + Period Pending) */}
+        <div className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40 glass-panel p-4 rounded-2xl border border-rose-200 dark:border-rose-800/80 space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider">Net Total Outstanding</span>
+            <DollarSign className="w-4 h-4 text-rose-600" />
+          </div>
+          <p className="text-lg font-black text-rose-700 dark:text-rose-300 font-heading">
+            {formatCurrency(netTotalOutstanding, currencyCode, decimalPlaces)}
+          </p>
+          <p className="text-[10px] text-rose-700/80 dark:text-rose-300/80 font-extrabold">
+            Carry Forward + Period Pending
+          </p>
         </div>
       </div>
 
@@ -1288,11 +1439,37 @@ export default function SubBranchInvoicing() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {/* Carry Forward Opening Balance Row */}
+                      {startDateFilter && carryForwardMetrics.totalPending > 0 && (
+                        <tr className="bg-amber-50/80 dark:bg-amber-950/40 font-bold border-b-2 border-amber-300 dark:border-amber-700">
+                          <td colSpan={3} className="p-3 text-amber-800 dark:text-amber-300 font-bold text-xs flex items-center gap-1.5">
+                            📌 CARRY FORWARD OPENING BALANCE (Prior to {formatDate(startDateFilter, dateFormat)})
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                            {formatCurrency(carryForwardMetrics.totalGrand, currencyCode, decimalPlaces)}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(carryForwardMetrics.totalPaid, currencyCode, decimalPlaces)}
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                            {formatCurrency(carryForwardMetrics.totalPending, currencyCode, decimalPlaces)}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border border-amber-300">
+                              CARRY FORWARD
+                            </span>
+                          </td>
+                          <td className="p-3 text-[10px] text-amber-700 dark:text-amber-300 italic">
+                            Opening balance brought forward
+                          </td>
+                        </tr>
+                      )}
+
                       {filteredTransfers.map((tr, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
                           <td className="p-3 font-mono font-bold text-brand-blue">{tr.invoice_no || tr.transfer_no}</td>
                           <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">{tr.to_location_name}</td>
-                          <td className="p-3 font-mono text-slate-500">{formatDate(tr.dispatched_at)}</td>
+                          <td className="p-3 font-mono text-slate-500">{formatDate(tr.dispatched_at, dateFormat)}</td>
                           <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">{formatCurrency(tr.total_val, currencyCode, decimalPlaces)}</td>
                           <td className="p-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(tr.paid_amount, currencyCode, decimalPlaces)}</td>
                           <td className="p-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">{formatCurrency(tr.pending_balance, currencyCode, decimalPlaces)}</td>
@@ -1328,10 +1505,10 @@ export default function SubBranchInvoicing() {
                           </td>
                         </tr>
                       ))}
-                      {filteredTransfers.length === 0 && (
+                      {filteredTransfers.length === 0 && (!startDateFilter || carryForwardMetrics.totalPending === 0) && (
                         <tr>
                           <td colSpan={8} className="p-4 text-center text-slate-400 text-xs">
-                            No branch invoices or ledger transactions found for this location.
+                            No branch invoices or ledger transactions found for this location in selected period.
                           </td>
                         </tr>
                       )}
