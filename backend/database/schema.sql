@@ -161,7 +161,16 @@ CREATE TABLE `stock_transfers` (
   `transfer_type` ENUM('BRANCH_INVOICED', 'CLINIC_TRANSFER') NOT NULL,
   `status` ENUM('DISPATCHED', 'RECEIVED', 'CANCELLED') DEFAULT 'DISPATCHED',
   `invoice_no` VARCHAR(80) DEFAULT NULL,
+  `subtotal` DECIMAL(12,2) DEFAULT 0.00,
+  `vat_amount` DECIMAL(12,2) DEFAULT 0.00,
   `total_val` DECIMAL(12,2) DEFAULT 0.00,
+  `paid_amount` DECIMAL(12,2) DEFAULT 0.00,
+  `payment_status` ENUM('UNPAID', 'PARTIAL', 'PAID') DEFAULT 'UNPAID',
+  `payment_method` ENUM('CASH', 'BANK_TRANSFER', 'CHEQUE') DEFAULT 'CASH',
+  `bank_name` VARCHAR(150) DEFAULT NULL,
+  `bank_reference` VARCHAR(100) DEFAULT NULL,
+  `cheque_no` VARCHAR(80) DEFAULT NULL,
+  `cheque_date` DATE DEFAULT NULL,
   `remarks` TEXT,
   `created_by` INT NOT NULL,
   `received_by` INT DEFAULT NULL,
@@ -171,6 +180,26 @@ CREATE TABLE `stock_transfers` (
   FOREIGN KEY (`to_location_id`) REFERENCES `locations`(`id`),
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`),
   FOREIGN KEY (`received_by`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 10b. Invoice Payment Records Table (Partial & Full Payment Receipts Ledger)
+CREATE TABLE `invoice_payment_records` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `transfer_id` INT NOT NULL,
+  `invoice_no` VARCHAR(80) NOT NULL,
+  `amount_paid` DECIMAL(12,2) NOT NULL,
+  `payment_method` ENUM('CASH', 'BANK_TRANSFER', 'CHEQUE') NOT NULL DEFAULT 'CASH',
+  `bank_name` VARCHAR(150) DEFAULT NULL,
+  `bank_reference` VARCHAR(100) DEFAULT NULL,
+  `cheque_no` VARCHAR(80) DEFAULT NULL,
+  `cheque_date` DATE DEFAULT NULL,
+  `remarks` TEXT DEFAULT NULL,
+  `created_by` INT NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`transfer_id`) REFERENCES `stock_transfers`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`),
+  INDEX `idx_pay_transfer` (`transfer_id`),
+  INDEX `idx_pay_invoice` (`invoice_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 11. Stock Transfer Items Table

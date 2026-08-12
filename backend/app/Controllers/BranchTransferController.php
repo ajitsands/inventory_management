@@ -165,41 +165,100 @@ class BranchTransferController extends Controller
             return;
         }
 
+        $paymentMethod = strtoupper(trim($body['payment_method'] ?? 'CASH'));
+        if (!in_array($paymentMethod, ['CASH', 'BANK_TRANSFER', 'CHEQUE'])) {
+            $paymentMethod = 'CASH';
+        }
+
+        $bankName = !empty($body['bank_name']) ? trim($body['bank_name']) : null;
+        $bankReference = !empty($body['bank_reference']) ? trim($body['bank_reference']) : null;
+        $chequeNo = !empty($body['cheque_no']) ? trim($body['cheque_no']) : null;
+        $chequeDate = !empty($body['cheque_date']) ? trim($body['cheque_date']) : null;
+        $remarks = !empty($body['remarks']) ? trim($body['remarks']) : null;
+
         $pdo = Model::getDB();
-        $stmt = $pdo->prepare("SELECT * FROM `stock_transfers` WHERE `id` = ?");
-        $stmt->execute([$transferId]);
-        $transfer = $stmt->fetch(PDO::FETCH_ASSOC);
+        Model::beginTransaction();
 
-        if (!$transfer) {
-            $this->error('Transfer record not found.', 404);
-            return;
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM `stock_transfers` WHERE `id` = ?");
+            $stmt->execute([$transferId]);
+            $transfer = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$transfer) {
+                Model::rollBack();
+                $this->error('Transfer record not found.', 404);
+                return;
+            }
+
+            $invoiceNo = $transfer['invoice_no'] ?: $transfer['transfer_no'];
+            $newPaidAmount = round((float)$transfer['paid_amount'] + $paymentAmount, 3);
+            $grandTotal = (float)$transfer['total_val'];
+
+            $newStatus = 'PARTIAL';
+            if ($newPaidAmount >= $grandTotal) {
+                $newPaidAmount = $grandTotal;
+                $newStatus = 'PAID';
+            }
+
+            // 1. Insert Payment Record Entry into invoice_payment_records
+            $stmtPay = $pdo->prepare("INSERT INTO `invoice_payment_records`
+                (`transfer_id`, `invoice_no`, `amount_paid`, `payment_method`, `bank_name`, `bank_reference`, `cheque_no`, `cheque_date`, `remarks`, `created_by`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmtPay->execute([
+                $transferId,
+                $invoiceNo,
+                $paymentAmount,
+                $paymentMethod,
+                $bankName,
+                $bankReference,
+                $chequeNo,
+                $chequeDate,
+                $remarks,
+                $user['user_id']
+            ]);
+
+            // 2. Update stock_transfers summary fields
+            $updateStmt = $pdo->prepare("UPDATE `stock_transfers` 
+                SET `paid_amount` = ?, `payment_status` = ?, `payment_method` = ?, `bank_name` = ?, `bank_reference` = ?, `cheque_no` = ?, `cheque_date` = ? 
+                WHERE `id` = ?");
+            $updateStmt->execute([
+                $newPaidAmount,
+                $newStatus,
+                $paymentMethod,
+                $bankName,
+                $bankReference,
+                $chequeNo,
+                $chequeDate,
+                $transferId
+            ]);
+
+            Model::commit();
+
+            AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'BRANCH_TRANSFER', 'RECORD_BRANCH_PAYMENT', null, [
+                'transfer_id'    => $transferId,
+                'invoice_no'     => $invoiceNo,
+                'payment_added'  => $paymentAmount,
+                'payment_method' => $paymentMethod,
+                'bank_name'      => $bankName,
+                'bank_reference' => $bankReference,
+                'cheque_no'      => $chequeNo,
+                'cheque_date'    => $chequeDate,
+                'new_total_paid' => $newPaidAmount,
+                'status'         => $newStatus
+            ]);
+
+            $this->json([
+                'success'        => true,
+                'message'        => 'Payment of BHD ' . number_format($paymentAmount, 3) . ' (' . str_replace('_', ' ', $paymentMethod) . ') recorded successfully!',
+                'paid_amount'    => $newPaidAmount,
+                'payment_status' => $newStatus,
+                'payment_method' => $paymentMethod
+            ]);
+
+        } catch (\Exception $e) {
+            Model::rollBack();
+            $this->error('Failed to record payment: ' . $e->getMessage(), 500);
         }
-
-        $newPaidAmount = round((float)$transfer['paid_amount'] + $paymentAmount, 3);
-        $grandTotal = (float)$transfer['total_val'];
-
-        $newStatus = 'PARTIAL';
-        if ($newPaidAmount >= $grandTotal) {
-            $newPaidAmount = $grandTotal;
-            $newStatus = 'PAID';
-        }
-
-        $updateStmt = $pdo->prepare("UPDATE `stock_transfers` SET `paid_amount` = ?, `payment_status` = ? WHERE `id` = ?");
-        $updateStmt->execute([$newPaidAmount, $newStatus, $transferId]);
-
-        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'BRANCH_TRANSFER', 'RECORD_BRANCH_PAYMENT', null, [
-            'transfer_id'   => $transferId,
-            'payment_added' => $paymentAmount,
-            'new_total_paid'=> $newPaidAmount,
-            'status'        => $newStatus
-        ]);
-
-        $this->json([
-            'success'        => true,
-            'message'        => 'Payment of BHD ' . number_format($paymentAmount, 3) . ' recorded successfully!',
-            'paid_amount'    => $newPaidAmount,
-            'payment_status' => $newStatus
-        ]);
     }
 
     public function getTransfers()
@@ -232,6 +291,12 @@ class BranchTransferController extends Controller
                                     JOIN `users` u ON sml.created_by = u.id
                                     WHERE sml.reference_no = ?");
 
+        $stmtPayRecords = $pdo->prepare("SELECT ipr.*, u.full_name AS created_by_name
+                                        FROM `invoice_payment_records` ipr
+                                        JOIN `users` u ON ipr.created_by = u.id
+                                        WHERE ipr.transfer_id = ?
+                                        ORDER BY ipr.id ASC");
+
         foreach ($transfers as &$tr) {
             $rawId = (int)$tr['id'];
             $tr['raw_id'] = $rawId;
@@ -259,6 +324,9 @@ class BranchTransferController extends Controller
 
             $stmtLedger->execute([$tr['transfer_no']]);
             $tr['ledger_movements'] = $stmtLedger->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtPayRecords->execute([$rawId]);
+            $tr['payment_records'] = $stmtPayRecords->fetchAll(PDO::FETCH_ASSOC);
         }
 
         $this->json([

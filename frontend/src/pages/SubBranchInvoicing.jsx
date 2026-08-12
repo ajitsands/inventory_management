@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2, HelpCircle, X, DollarSign, FileText, Calendar, Wallet, Receipt, Filter, History, ArrowRight } from 'lucide-react';
+import { GitPullRequest, Plus, Trash2, CheckCircle2, AlertCircle, Building2, HelpCircle, X, DollarSign, FileText, Calendar, Wallet, Receipt, Filter, History, ArrowRight, BookOpen, Landmark, CreditCard } from 'lucide-react';
 
 export default function SubBranchInvoicing() {
   const [subBranches, setSubBranches] = useState([]);
@@ -28,6 +28,18 @@ export default function SubBranchInvoicing() {
   const [selectedTransferDetail, setSelectedTransferDetail] = useState(null);
   const [paymentModalTransfer, setPaymentModalTransfer] = useState(null);
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
+
+  // Payment Method & Reference Inputs
+  const [paymentMethodInput, setPaymentMethodInput] = useState('CASH');
+  const [bankNameInput, setBankNameInput] = useState('');
+  const [bankRefInput, setBankRefInput] = useState('');
+  const [chequeNoInput, setChequeNoInput] = useState('');
+  const [chequeDateInput, setChequeDateInput] = useState('');
+  const [paymentRemarksInput, setPaymentRemarksInput] = useState('');
+
+  // Branch Ledger Trajectory Modal State
+  const [showBranchLedgerModal, setShowBranchLedgerModal] = useState(false);
+  const [branchLedgerTab, setBranchLedgerTab] = useState('invoices'); // 'invoices' | 'movements'
 
   function createEmptyLine() {
     return {
@@ -199,7 +211,13 @@ export default function SubBranchInvoicing() {
         body: JSON.stringify({
           transfer_id: paymentModalTransfer.id,
           raw_transfer_id: paymentModalTransfer.raw_id,
-          amount_paid: paymentAmountInput
+          amount_paid: paymentAmountInput,
+          payment_method: paymentMethodInput,
+          bank_name: bankNameInput,
+          bank_reference: bankRefInput,
+          cheque_no: chequeNoInput,
+          cheque_date: chequeDateInput,
+          remarks: paymentRemarksInput
         })
       });
 
@@ -207,6 +225,12 @@ export default function SubBranchInvoicing() {
         setMessage({ type: 'success', text: res.message });
         setPaymentModalTransfer(null);
         setPaymentAmountInput('');
+        setPaymentMethodInput('CASH');
+        setBankNameInput('');
+        setBankRefInput('');
+        setChequeNoInput('');
+        setChequeDateInput('');
+        setPaymentRemarksInput('');
         loadData();
       }
     } catch (err) {
@@ -244,6 +268,7 @@ export default function SubBranchInvoicing() {
   }, { totalGrand: 0, totalSubtotal: 0, totalVat: 0, totalPaid: 0, totalPending: 0 });
 
   const destinationBranchObj = subBranches.find(b => b.id === toLocationId || b.raw_id == toLocationId);
+  const selectedBranchObj = subBranches.find(b => b.id === selectedBranchFilter || b.raw_id == selectedBranchFilter);
 
   const transferColumns = [
     {
@@ -339,18 +364,27 @@ export default function SubBranchInvoicing() {
         return (
           <div className="flex items-center justify-center gap-1.5">
             <button
+              type="button"
               onClick={() => setSelectedTransferDetail(t)}
-              className="p-1.5 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-xs font-semibold flex items-center gap-1"
-              title="View Invoice Breakdown & Ledger"
+              className="px-2.5 py-1 text-slate-700 dark:text-slate-200 hover:text-brand-blue bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
+              title="View Complete Invoice Breakdown & Ledger"
             >
-              <FileText className="w-4 h-4 text-brand-blue" />
+              <BookOpen className="w-3.5 h-3.5 text-brand-blue" />
+              View Ledger
             </button>
 
             {pending > 0 ? (
               <button
+                type="button"
                 onClick={() => {
                   setPaymentModalTransfer(t);
-                  setPaymentAmountInput(pending.toFixed(3));
+                  setPaymentAmountInput(pending.toFixed(decimalPlaces));
+                  setPaymentMethodInput('CASH');
+                  setBankNameInput('');
+                  setBankRefInput('');
+                  setChequeNoInput('');
+                  setChequeDateInput('');
+                  setPaymentRemarksInput('');
                 }}
                 className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold rounded-xl text-[11px] shadow-sm flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                 title="Record Payment Received Against Invoice"
@@ -380,7 +414,7 @@ export default function SubBranchInvoicing() {
           <p className="text-xs text-slate-500 dark:text-slate-400">Generate sub-branch stock transfer invoices with separated VAT and track payments & total pending balance across all branches in {currencyCode}</p>
         </div>
 
-        {/* Branch Filter Dropdown */}
+        {/* Branch Filter Dropdown & View Branch Ledger Option */}
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-brand-blue" />
           <select
@@ -393,6 +427,15 @@ export default function SubBranchInvoicing() {
               <option key={b.id} value={b.raw_id || b.id}>{b.name} ({b.code})</option>
             ))}
           </select>
+
+          <button
+            type="button"
+            onClick={() => setShowBranchLedgerModal(true)}
+            className="px-3 py-1.5 bg-gradient-to-r from-brand-blue to-blue-600 hover:brightness-110 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+            title="See All Ledger Transactions of Selected Branch"
+          >
+            <BookOpen className="w-3.5 h-3.5" /> View Branch Ledger
+          </button>
         </div>
       </div>
 
@@ -697,10 +740,10 @@ export default function SubBranchInvoicing() {
         </div>
       )}
 
-      {/* Receive Payment Modal */}
+      {/* Receive Payment Modal with Payment Method Marking & References */}
       {paymentModalTransfer && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 rounded-2xl border border-emerald-200 dark:border-emerald-800">
@@ -711,7 +754,7 @@ export default function SubBranchInvoicing() {
                   <p className="text-xs text-slate-500 dark:text-slate-400">Invoice: {paymentModalTransfer.invoice_no || paymentModalTransfer.transfer_no}</p>
                 </div>
               </div>
-              <button onClick={() => setPaymentModalTransfer(null)} className="p-2 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setPaymentModalTransfer(null)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
 
             <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
@@ -734,8 +777,49 @@ export default function SubBranchInvoicing() {
                 </div>
               </div>
 
+              {/* Payment Method Selector Pills */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Enter Received Payment Amount ({currencyCode}) *</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Select Payment Method *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethodInput('CASH')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      paymentMethodInput === 'CASH'
+                        ? 'bg-emerald-50 dark:bg-emerald-950 border-emerald-500 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    <Wallet className="w-4 h-4 text-emerald-600" /> Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethodInput('BANK_TRANSFER')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      paymentMethodInput === 'BANK_TRANSFER'
+                        ? 'bg-blue-50 dark:bg-blue-950 border-blue-500 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    <Landmark className="w-4 h-4 text-blue-600" /> Bank Transfer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethodInput('CHEQUE')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      paymentMethodInput === 'CHEQUE'
+                        ? 'bg-purple-50 dark:bg-purple-950 border-purple-500 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4 text-purple-600" /> Cheque
+                  </button>
+                </div>
+              </div>
+
+              {/* Payment Amount Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Received Payment Amount ({currencyCode}) *</label>
                 <input
                   type="number"
                   step="0.001"
@@ -745,6 +829,92 @@ export default function SubBranchInvoicing() {
                   value={paymentAmountInput}
                   onChange={(e) => setPaymentAmountInput(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-900 dark:text-slate-100 font-bold font-mono focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Dynamic Reference Section: Bank Transfer */}
+              {paymentMethodInput === 'BANK_TRANSFER' && (
+                <div className="p-3.5 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-800/80 space-y-3 animate-in fade-in duration-150">
+                  <p className="text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                    <Landmark className="w-4 h-4" /> Bank Transfer Reference Details
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Bank Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. National Bank of Bahrain / BBK / HSBC"
+                      value={bankNameInput}
+                      onChange={(e) => setBankNameInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Bank Reference / Transaction Ref # *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. TRX-9920194827"
+                      value={bankRefInput}
+                      onChange={(e) => setBankRefInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Reference Section: Cheque */}
+              {paymentMethodInput === 'CHEQUE' && (
+                <div className="p-3.5 bg-purple-50/70 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800/80 space-y-3 animate-in fade-in duration-150">
+                  <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4" /> Cheque Reference Details
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Cheque Number *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. CHQ-445892"
+                      value={chequeNoInput}
+                      onChange={(e) => setChequeNoInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Issuing Bank Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. BBK Bank"
+                        value={bankNameInput}
+                        onChange={(e) => setBankNameInput(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Cheque Date *</label>
+                      <input
+                        type="date"
+                        required
+                        value={chequeDateInput}
+                        onChange={(e) => setChequeDateInput(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Remarks Field */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Payment Notes / Remarks (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Additional payment notes or deposit account details..."
+                  value={paymentRemarksInput}
+                  onChange={(e) => setPaymentRemarksInput(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100"
                 />
               </div>
 
@@ -759,7 +929,7 @@ export default function SubBranchInvoicing() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold text-xs shadow-md flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Save Payment Entry
                 </button>
@@ -769,7 +939,7 @@ export default function SubBranchInvoicing() {
         </div>
       )}
 
-      {/* Invoice Breakdown & Stock Movement Ledger Detail Modal */}
+      {/* Invoice Breakdown & Stock / Financial Payment Ledger Detail Modal */}
       {selectedTransferDetail && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-5xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150 my-8">
@@ -787,7 +957,7 @@ export default function SubBranchInvoicing() {
                       BRANCH INVOICED
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete items breakdown, separated VAT & stock movement ledger entries</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete items breakdown, separated VAT, payment receipt history & stock movement ledger entries</p>
                 </div>
               </div>
 
@@ -874,6 +1044,74 @@ export default function SubBranchInvoicing() {
               </div>
             </div>
 
+            {/* Financial Payment Receipts Ledger History Table */}
+            <div className="space-y-2 pt-2">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Wallet className="w-4 h-4 text-emerald-600" />
+                Financial Payment Receipts Ledger ({selectedTransferDetail.payment_records?.length || 0})
+              </h4>
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-950">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-200/60 dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="p-2.5">Date & Time</th>
+                      <th className="p-2.5">Payment Method</th>
+                      <th className="p-2.5 text-right">Amount Paid</th>
+                      <th className="p-2.5">Bank / Cheque Details & References</th>
+                      <th className="p-2.5">Recorded By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {(selectedTransferDetail.payment_records || []).map((pay, pIdx) => (
+                      <tr key={pIdx} className="hover:bg-slate-100/50 dark:hover:bg-slate-900/50">
+                        <td className="p-2.5 font-mono text-slate-500 text-[11px]">{formatDate(pay.created_at)}</td>
+                        <td className="p-2.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            pay.payment_method === 'BANK_TRANSFER'
+                              ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300'
+                              : pay.payment_method === 'CHEQUE'
+                              ? 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300'
+                          }`}>
+                            {pay.payment_method === 'BANK_TRANSFER' ? '🏦 BANK TRANSFER' : pay.payment_method === 'CHEQUE' ? '📜 CHEQUE' : '💵 CASH'}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(pay.amount_paid, currencyCode, decimalPlaces)}
+                        </td>
+                        <td className="p-2.5 text-[11px]">
+                          {pay.payment_method === 'BANK_TRANSFER' && (
+                            <div>
+                              <p className="font-bold text-slate-800 dark:text-slate-200">Bank: {pay.bank_name || 'N/A'}</p>
+                              <p className="font-mono text-slate-500 text-[10px]">Ref #: {pay.bank_reference || 'N/A'}</p>
+                            </div>
+                          )}
+                          {pay.payment_method === 'CHEQUE' && (
+                            <div>
+                              <p className="font-bold text-slate-800 dark:text-slate-200">Cheque #: {pay.cheque_no || 'N/A'}</p>
+                              <p className="text-slate-600 dark:text-slate-400 text-[10px]">Bank: {pay.bank_name || 'N/A'} | Date: {pay.cheque_date ? formatDate(pay.cheque_date) : 'N/A'}</p>
+                            </div>
+                          )}
+                          {pay.payment_method === 'CASH' && (
+                            <span className="text-slate-500 font-mono text-[11px]">Cash Counter Receipt</span>
+                          )}
+                          {pay.remarks && <p className="text-[10px] text-slate-400 italic mt-0.5">"{pay.remarks}"</p>}
+                        </td>
+                        <td className="p-2.5 font-bold text-slate-700 dark:text-slate-300">{pay.created_by_name || 'Store Manager'}</td>
+                      </tr>
+                    ))}
+                    {(!selectedTransferDetail.payment_records || selectedTransferDetail.payment_records.length === 0) && (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-slate-400 text-xs">
+                          No separate payment entries recorded yet. (Initial invoice value: {formatCurrency(selectedTransferDetail.paid_amount || 0, currencyCode, decimalPlaces)})
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* Stock Movements Ledger Logs Section */}
             <div className="space-y-2 pt-2">
               <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
@@ -942,9 +1180,222 @@ export default function SubBranchInvoicing() {
               <button
                 type="button"
                 onClick={() => setSelectedTransferDetail(null)}
-                className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
               >
                 Close Breakdown
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BRANCH LEDGER TRAJECTORY MODAL (All Transactions for Particular Selected Branch) */}
+      {showBranchLedgerModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-6xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150 my-8">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-brand-blue/10 dark:bg-brand-blue/20 text-brand-blue rounded-2xl border border-brand-blue/30">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">
+                      Branch Ledger Trajectory: {selectedBranchObj ? `${selectedBranchObj.name} (${selectedBranchObj.code})` : 'All Sub-Branches'}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete audit of all financial invoices, payment collections (Cash/Bank/Cheque) & stock ledger movements for this branch</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowBranchLedgerModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Branch Summary Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-400 block text-[11px]">Total Branch Invoiced</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm font-mono mt-0.5 block">
+                  {formatCurrency(summaryMetrics.totalGrand, currencyCode, decimalPlaces)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Total Payments Collected</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono mt-0.5 block">
+                  {formatCurrency(summaryMetrics.totalPaid, currencyCode, decimalPlaces)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Outstanding Receivables</span>
+                <span className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono mt-0.5 block">
+                  {formatCurrency(summaryMetrics.totalPending, currencyCode, decimalPlaces)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Total Invoices Count</span>
+                <span className="font-bold text-brand-blue text-sm font-mono mt-0.5 block">
+                  {filteredTransfers.length} Transaction(s)
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Subtabs */}
+            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+              <button
+                type="button"
+                onClick={() => setBranchLedgerTab('invoices')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  branchLedgerTab === 'invoices'
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                <Receipt className="w-4 h-4" /> Financial Invoices & Payment Ledger ({filteredTransfers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBranchLedgerTab('movements')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  branchLedgerTab === 'movements'
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                <History className="w-4 h-4" /> Stock Movement Trajectory Ledger
+              </button>
+            </div>
+
+            {/* Tab 1: Financial Invoices & Payment Ledger */}
+            {branchLedgerTab === 'invoices' && (
+              <div className="space-y-3">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                  <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
+                    <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="p-3">Invoice #</th>
+                        <th className="p-3">Sub-Branch</th>
+                        <th className="p-3">Dispatch Date</th>
+                        <th className="p-3 text-right">Grand Total ({currencyCode})</th>
+                        <th className="p-3 text-right">Paid Amount ({currencyCode})</th>
+                        <th className="p-3 text-right">Pending Balance ({currencyCode})</th>
+                        <th className="p-3 text-center">Status</th>
+                        <th className="p-3">Payment Method & References</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {filteredTransfers.map((tr, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
+                          <td className="p-3 font-mono font-bold text-brand-blue">{tr.invoice_no || tr.transfer_no}</td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">{tr.to_location_name}</td>
+                          <td className="p-3 font-mono text-slate-500">{formatDate(tr.dispatched_at)}</td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">{formatCurrency(tr.total_val, currencyCode, decimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(tr.paid_amount, currencyCode, decimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">{formatCurrency(tr.pending_balance, currencyCode, decimalPlaces)}</td>
+                          <td className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              tr.payment_status === 'PAID'
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 border-emerald-300'
+                                : tr.payment_status === 'PARTIAL'
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 border-amber-300'
+                                : 'bg-rose-100 dark:bg-rose-950 text-rose-700 border-rose-300'
+                            }`}>
+                              {tr.payment_status || 'UNPAID'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-[11px]">
+                            {tr.payment_records && tr.payment_records.length > 0 ? (
+                              <div className="space-y-1">
+                                {tr.payment_records.map((p, pIdx) => (
+                                  <div key={pIdx} className="flex items-center gap-1 font-mono text-[10px]">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">{p.payment_method}:</span>
+                                    <span>{formatCurrency(p.amount_paid, currencyCode, decimalPlaces)}</span>
+                                    {p.bank_name && <span className="text-slate-400">({p.bank_name})</span>}
+                                    {p.bank_reference && <span className="text-blue-500">[{p.bank_reference}]</span>}
+                                    {p.cheque_no && <span className="text-purple-500">[Chq: {p.cheque_no}]</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-mono text-[10px]">
+                                {tr.payment_method ? `${tr.payment_method} ${tr.bank_name ? `(${tr.bank_name})` : ''}` : 'CASH'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredTransfers.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="p-4 text-center text-slate-400 text-xs">
+                            No branch invoices or ledger transactions found for this location.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Stock Movement Trajectory Ledger */}
+            {branchLedgerTab === 'movements' && (
+              <div className="space-y-3">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                  <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
+                    <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="p-3">Ref #</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Item & Batch Code</th>
+                        <th className="p-3">From Branch ➔ Destination Branch</th>
+                        <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Unit Price ({currencyCode})</th>
+                        <th className="p-3">Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {filteredTransfers.flatMap(tr => tr.ledger_movements || []).map((mov, mIdx) => (
+                        <tr key={mIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
+                          <td className="p-3 font-mono font-bold text-brand-blue">{mov.reference_no}</td>
+                          <td className="p-3 font-bold text-emerald-600 text-[10px]">{mov.transaction_type}</td>
+                          <td className="p-3">
+                            <p className="font-bold text-slate-900 dark:text-slate-100">{mov.item_name}</p>
+                            <p className="text-[10px] font-mono text-slate-400">Batch: {mov.batch_code}</p>
+                          </td>
+                          <td className="p-3 text-[11px]">
+                            <span className="text-slate-600 dark:text-slate-400">{mov.from_location_name}</span>
+                            <ArrowRight className="w-3 h-3 inline mx-1 text-slate-400" />
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{mov.to_location_name}</span>
+                          </td>
+                          <td className="p-3 text-center font-extrabold font-mono text-slate-900 dark:text-slate-100">{mov.qty}</td>
+                          <td className="p-3 text-right font-mono font-bold">{formatCurrency(mov.unit_price, currencyCode, decimalPlaces)}</td>
+                          <td className="p-3 font-mono text-slate-400 text-[10px]">{formatDate(mov.timestamp)}</td>
+                        </tr>
+                      ))}
+                      {filteredTransfers.flatMap(tr => tr.ledger_movements || []).length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-4 text-center text-slate-400 text-xs">
+                            No stock movement trajectory logs found for this branch.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowBranchLedgerModal(false)}
+                className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                Close Branch Ledger
               </button>
             </div>
           </div>
