@@ -71,10 +71,10 @@ class BranchTransferController extends Controller
 
             $vatAmount = round($grossSubtotal * ($vatPercent / 100), 3);
             $grandTotal = round($grossSubtotal + $vatAmount, 3);
-            $initialPaid = isset($body['paid_amount']) ? (float)$body['paid_amount'] : $grandTotal;
+            $initialPaid = isset($body['paid_amount']) ? (float)$body['paid_amount'] : 0.00;
 
             $paymentStatus = 'UNPAID';
-            if ($initialPaid >= $grandTotal) {
+            if ($initialPaid >= $grandTotal && $grandTotal > 0) {
                 $paymentStatus = 'PAID';
             } elseif ($initialPaid > 0) {
                 $paymentStatus = 'PARTIAL';
@@ -250,7 +250,7 @@ class BranchTransferController extends Controller
                 $tr['vat_amount'] = $vatAmount;
             }
 
-            $paid = (float)($tr['paid_amount'] ?? $grandTotal);
+            $paid = (float)($tr['paid_amount'] ?? 0.00);
             $tr['paid_amount'] = $paid;
             $tr['pending_balance'] = max(0.00, round($grandTotal - $paid, 3));
 
