@@ -289,8 +289,8 @@ export default function ClinicStockTransfer() {
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="p-3.5 min-w-[420px]">Search & Select Sub-Branch Batch *</th>
-                  <th className="p-3.5 w-36">Batch Code</th>
+                  <th className="p-3.5 min-w-[400px]">Search & Select Sub-Branch Batch *</th>
+                  <th className="p-3.5 min-w-[220px] w-56">Batch Code</th>
                   <th className="p-3.5 w-36">Sub-Branch Stock Avail</th>
                   <th className="p-3.5 w-36">Transfer Qty (Press Enter for New Row) *</th>
                   <th className="p-3.5 w-12 text-center">Action</th>
@@ -352,8 +352,8 @@ export default function ClinicStockTransfer() {
                           )}
                         </td>
 
-                        <td className="p-2.5">
-                          <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
+                        <td className="p-2.5 min-w-[220px]">
+                          <span className="inline-block px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 whitespace-nowrap shadow-2xs">
                             {line.batch_code || '-'}
                           </span>
                         </td>
