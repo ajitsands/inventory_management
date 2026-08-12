@@ -309,19 +309,16 @@ export default function ClinicSalesPOS() {
         }))
       };
 
-      const res = await apiFetch('/sales', {
+      const res = await apiFetch('/sales/create', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
 
       if (res.success) {
-        setMessage({ type: 'success', text: `Patient Sales Invoice ${res.invoice_no} posted successfully! Stock debited with FIFO automated allocation.` });
+        setMessage({ type: 'success', text: `Patient Sales Invoice ${res.sales_invoice_no || res.invoice_no || ''} posted successfully! Stock debited with FIFO automated allocation.` });
         setCart([]);
         setDiscountAmount('0.00');
         fetchClinicStockAndDoctors(selectedClinicId);
-
-        const salesRes = await apiFetch('/sales/list');
-        setSalesInvoices(salesRes.invoices || []);
       }
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Dispensing sales invoice posting failed' });
