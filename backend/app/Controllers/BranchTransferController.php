@@ -225,7 +225,11 @@ class BranchTransferController extends Controller
         foreach ($transfers as &$tr) {
             $rawId = (int)$tr['id'];
             $tr['raw_id'] = $rawId;
+            $tr['raw_from_location_id'] = (int)$tr['from_location_id'];
+            $tr['raw_to_location_id'] = (int)$tr['to_location_id'];
             $tr['id'] = UrlSecurity::encrypt($tr['id']);
+            $tr['from_location_id'] = UrlSecurity::encrypt($tr['from_location_id']);
+            $tr['to_location_id'] = UrlSecurity::encrypt($tr['to_location_id']);
 
             $subtotal = (float)$tr['subtotal'];
             $grandTotal = (float)$tr['total_val'];

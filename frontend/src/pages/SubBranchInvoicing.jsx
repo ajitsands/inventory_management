@@ -221,7 +221,10 @@ export default function SubBranchInvoicing() {
 
   const filteredTransfers = branchInvoicedTransfers.filter(t => {
     if (selectedBranchFilter === 'ALL') return true;
-    return (t.to_location_id === selectedBranchFilter || t.to_location_id == selectedBranchFilter);
+    return (
+      String(t.to_location_id) === String(selectedBranchFilter) ||
+      String(t.raw_to_location_id) === String(selectedBranchFilter)
+    );
   });
 
   // Calculate Metrics Across Filtered / All Sub-Branches
@@ -383,7 +386,7 @@ export default function SubBranchInvoicing() {
           >
             <option value="ALL">All Sub-Branches ({subBranches.length})</option>
             {subBranches.map(b => (
-              <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+              <option key={b.id} value={b.raw_id || b.id}>{b.name} ({b.code})</option>
             ))}
           </select>
         </div>
