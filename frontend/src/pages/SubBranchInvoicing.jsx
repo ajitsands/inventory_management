@@ -497,7 +497,7 @@ export default function SubBranchInvoicing() {
           </div>
 
           {/* Line Items Table */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 min-h-[220px]">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 min-h-[380px] pb-48">
             <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
                 <tr>
@@ -578,7 +578,7 @@ export default function SubBranchInvoicing() {
             </table>
           </div>
 
-          <div className="flex justify-between items-center pt-2">
+          <div className="flex items-center justify-between pt-2">
             <button
               type="button"
               onClick={addLine}
@@ -612,19 +612,21 @@ export default function SubBranchInvoicing() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-brand-blue to-blue-600 text-white font-bold text-xs shadow-md glow-blue hover:brightness-110 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-          >
-            {submitting ? (
-              <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" /> Dispatch Sub-Branch Transfer & Issue Invoice
-              </>
-            )}
-          </button>
+          <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-brand-blue to-blue-600 text-white font-bold text-xs shadow-md glow-blue hover:brightness-110 active:scale-95 transition-all flex items-center gap-2 font-heading"
+            >
+              {submitting ? (
+                <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" /> Dispatch Sub-Branch Transfer & Issue Invoice
+                </>
+              )}
+            </button>
+          </div>
         </form>
       </div>
 
