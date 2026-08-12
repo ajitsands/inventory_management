@@ -17,11 +17,13 @@ class ReturnController extends Controller
         $user = $this->requireAuth();
         $pdo = Model::getDB();
 
-        $rawLocId = UrlSecurity::decrypt($_GET['location_id'] ?? null);
-        $locId = !empty($rawLocId) ? (int)$rawLocId : (int)($_GET['raw_location_id'] ?? $_GET['location_id'] ?? 0);
-
+        // Always use the authenticated user's location_id for non-ADMIN users
+        // For ADMIN, allow location_id query param override
         if ($user['role'] !== 'ADMIN' && !empty($user['location_id'])) {
             $locId = (int)$user['location_id'];
+        } else {
+            $rawLocId = UrlSecurity::decrypt($_GET['location_id'] ?? null);
+            $locId = !empty($rawLocId) ? (int)$rawLocId : (int)($_GET['raw_location_id'] ?? $_GET['location_id'] ?? 0);
         }
 
         if (!$locId) {
@@ -47,14 +49,19 @@ class ReturnController extends Controller
         foreach ($batches as $b) {
             $batchId = (int)$b['batch_id'];
 
-            // Calculate total quantity received by this location for this batch from stock_transfer_items
-            $stmtRec = $pdo->prepare("SELECT COALESCE(SUM(sti.quantity), 0) AS total_received 
-                                     FROM `stock_transfer_items` sti
-                                     JOIN `stock_transfers` st ON sti.transfer_id = st.id
-                                     WHERE st.to_location_id = ? AND sti.batch_id = ?");
-            $stmtRec->execute([$locId, $batchId]);
-            $recRow = $stmtRec->fetch(PDO::FETCH_ASSOC);
-            $totalReceived = (int)($recRow['total_received'] ?? 0);
+            // Find the MOST RECENT stock_transfer that delivered this batch to this location
+            // This tells us which Sub-Branch to return to
+            $stmtTransfer = $pdo->prepare("SELECT st.from_location_id, SUM(sti.qty) AS total_received
+                                          FROM `stock_transfer_items` sti
+                                          JOIN `stock_transfers` st ON sti.transfer_id = st.id
+                                          WHERE st.to_location_id = ? AND sti.batch_id = ?
+                                          GROUP BY st.from_location_id
+                                          ORDER BY MAX(st.id) DESC
+                                          LIMIT 1");
+            $stmtTransfer->execute([$locId, $batchId]);
+            $transferRow = $stmtTransfer->fetch(PDO::FETCH_ASSOC);
+            $totalReceived = (int)($transferRow['total_received'] ?? 0);
+            $transferFromLocId = $transferRow ? (int)$transferRow['from_location_id'] : null;
 
             // Calculate quantity already returned or in return process
             $stmtRet = $pdo->prepare("SELECT COALESCE(SUM(sri.quantity), 0) AS total_returned
@@ -74,12 +81,15 @@ class ReturnController extends Controller
 
             $b['raw_id'] = $batchId;
             $b['raw_batch_id'] = $batchId;
+            $b['batch_id'] = $batchId;            // keep raw int for frontend matching
             $b['id'] = UrlSecurity::encrypt($batchId);
             $b['raw_item_id'] = (int)$b['item_id'];
-            $b['item_id'] = UrlSecurity::encrypt($b['raw_item_id']);
+            $b['item_id'] = (int)$b['raw_item_id'];  // keep raw int
             $b['total_received'] = $totalReceived > 0 ? $totalReceived : $availQty;
             $b['total_returned'] = $totalReturned;
             $b['max_returnable_qty'] = $maxReturnable > 0 ? $maxReturnable : $availQty;
+            // Tell frontend which Sub-Branch to auto-select as Destination
+            $b['transfer_from_location_id'] = $transferFromLocId;
 
             if ($b['max_returnable_qty'] > 0) {
                 $result[] = $b;
@@ -88,6 +98,7 @@ class ReturnController extends Controller
 
         $this->json(['success' => true, 'items' => $result]);
     }
+
 
     /**
      * Create Return Request (Clinic -> Branch or Branch -> Main Store)

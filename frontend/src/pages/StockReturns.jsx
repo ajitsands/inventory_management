@@ -110,6 +110,7 @@ export default function StockReturns() {
       const sbList = locs.filter(l => l.type === 'SUB_BRANCH' || l.type === 'MAIN_BRANCH' || l.type === 'BRANCH');
       const cList = locs.filter(l => l.type === 'CLINIC');
 
+      // Store with raw_id integers so we can easily match user.location_id
       setSubBranches(sbList.length > 0 ? sbList : locs);
       setClinics(cList);
       setWalletReturns(walletRes.wallet_returns || []);
@@ -118,39 +119,38 @@ export default function StockReturns() {
       const setts = settingsRes.settings || { currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
 
-      // Default location assignment
-      const userLocId = user?.location_id || user?.raw_location_id;
-      let initialFromId = '';
-      let initialToId = '';
+      // Use RAW integer IDs (raw_id) throughout form state — backend always accepts raw_location_id
+      const userLocId = parseInt(user?.location_id || user?.raw_location_id || 0);
+      let initialFromRawId = 0;
+      let initialToRawId = 0;
 
       if (isClinicUser) {
         setReturnType('CLINIC_TO_BRANCH');
-        const userClinic = cList.find(c => c.id == userLocId || c.raw_id == userLocId);
-        initialFromId = userClinic ? userClinic.id : (cList.length > 0 ? cList[0].id : '');
-        
+        const userClinic = cList.find(c => c.raw_id == userLocId);
+        initialFromRawId = userClinic ? userClinic.raw_id : (cList.length > 0 ? cList[0].raw_id : 0);
         const prefBranch = subBranchesOnly.length > 0 ? subBranchesOnly[0] : (sbList.length > 0 ? sbList[0] : null);
-        initialToId = prefBranch ? prefBranch.id : '';
+        initialToRawId = prefBranch ? prefBranch.raw_id : 0;
       } else if (isBranchManager) {
         setReturnType('BRANCH_TO_MAIN');
-        const userBranch = sbList.find(s => s.id == userLocId || s.raw_id == userLocId);
-        initialFromId = userBranch ? userBranch.id : (sbList.length > 0 ? sbList[0].id : '');
-        initialToId = 1; // Main Store
+        const userBranch = sbList.find(s => s.raw_id == userLocId);
+        initialFromRawId = userBranch ? userBranch.raw_id : (sbList.length > 0 ? sbList[0].raw_id : 0);
+        initialToRawId = 1; // Main Store raw ID
       } else {
         setReturnType('BRANCH_TO_MAIN');
-        initialFromId = sbList.length > 0 ? sbList[0].id : '';
-        initialToId = 1;
+        initialFromRawId = sbList.length > 0 ? sbList[0].raw_id : 0;
+        initialToRawId = 1;
       }
 
-      setFromLocationId(initialFromId);
-      setToLocationId(initialToId);
+      setFromLocationId(initialFromRawId || '');
+      setToLocationId(initialToRawId || '');
 
-      if (initialFromId) {
-        fetchEligibleItems(initialFromId);
+      if (initialFromRawId) {
+        fetchEligibleItems(initialFromRawId);
       }
 
-      // Load Reject Wallet for Clinic or Credit Notes/Damaged Stock for Admin/Branch
-      if (isClinicUser || initialFromId) {
-        const rejRes = await apiFetch(`/returns/reject-wallet?location_id=${initialFromId}`);
+      // Load Reject Wallet for Clinic
+      if (isClinicUser && initialFromRawId) {
+        const rejRes = await apiFetch(`/returns/reject-wallet?raw_location_id=${initialFromRawId}`);
         setClinicRejectWallet(rejRes.reject_wallet || []);
       }
 
@@ -170,13 +170,15 @@ export default function StockReturns() {
     }
   };
 
-  const fetchEligibleItems = async (locId) => {
-    if (!locId) return;
+  // Always pass raw integer location ID — backend reads raw_location_id directly
+  const fetchEligibleItems = async (rawLocId) => {
+    if (!rawLocId) return;
     try {
-      const res = await apiFetch(`/returns/eligible-items?location_id=${locId}`);
+      const res = await apiFetch(`/returns/eligible-items?raw_location_id=${rawLocId}`);
       setEligibleItems(res.items || []);
     } catch (err) {
-      console.error(err);
+      console.error('fetchEligibleItems error:', err);
+      setEligibleItems([]);
     }
   };
 
@@ -184,11 +186,23 @@ export default function StockReturns() {
     loadData();
   }, []);
 
+  // newLocId is always a raw integer here
   const handleFromLocationChange = (newLocId) => {
     setFromLocationId(newLocId);
     setLineItems([]);
     setSelectedBatchId('');
+    setToLocationId('');
     fetchEligibleItems(newLocId);
+  };
+
+  // When a batch is selected, auto-detect which Sub-Branch supplied it
+  const handleBatchSelect = (batchEncId) => {
+    setSelectedBatchId(batchEncId);
+    // If batch has a transfer_from_location_id (tracked from backend), auto-set Destination
+    const batchObj = eligibleItems.find(b => b.id === batchEncId || String(b.raw_id) === String(batchEncId) || String(b.batch_id) === String(batchEncId));
+    if (batchObj && batchObj.transfer_from_location_id) {
+      setToLocationId(batchObj.transfer_from_location_id);
+    }
   };
 
   const handleAddLineItem = () => {
@@ -197,7 +211,12 @@ export default function StockReturns() {
       return;
     }
 
-    const batchObj = eligibleItems.find(b => b.id === selectedBatchId || b.raw_id == selectedBatchId);
+    // Match using raw integer batch_id since selectedBatchId is now a raw int
+    const batchObj = eligibleItems.find(b =>
+      String(b.raw_id) === String(selectedBatchId) ||
+      String(b.raw_batch_id) === String(selectedBatchId) ||
+      String(b.batch_id) === String(selectedBatchId)
+    );
     if (!batchObj) return;
 
     const qtyVal = parseInt(returnQty || 1);
@@ -263,15 +282,18 @@ export default function StockReturns() {
     try {
       const payload = {
         return_type: returnType,
-        from_location_id: fromLocationId,
-        to_location_id: toLocationId,
+        // Use raw integer IDs — backend reads raw_from/to_location_id directly
+        raw_from_location_id: parseInt(fromLocationId),
+        raw_to_location_id: parseInt(toLocationId),
+        from_location_id: parseInt(fromLocationId),
+        to_location_id: parseInt(toLocationId),
         reason: returnReason,
         notes: notes,
         items: lineItems.map(item => ({
-          item_id: item.item_id,
           raw_item_id: item.raw_item_id,
-          batch_id: item.batch_id,
+          item_id: item.raw_item_id,
           raw_batch_id: item.raw_batch_id,
+          batch_id: item.raw_batch_id,
           quantity: item.quantity,
           unit_rate: item.unit_rate
         }))
@@ -821,13 +843,13 @@ export default function StockReturns() {
                 {returnType === 'CLINIC_TO_BRANCH' ? (
                   <SearchableSelect
                     placeholder="Select Receiving Sub-Branch..."
-                    options={subBranches.filter(s => s.id !== fromLocationId && s.raw_id != fromLocationId).map(s => ({
-                      value: s.id,
+                    options={subBranches.filter(s => s.raw_id != fromLocationId).map(s => ({
+                      value: s.raw_id,
                       label: `${s.name} (${s.code})`,
                       sublabel: s.type
                     }))}
                     value={toLocationId}
-                    onChange={(val) => setToLocationId(val)}
+                    onChange={(val) => setToLocationId(parseInt(val))}
                   />
                 ) : (
                   <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -868,12 +890,12 @@ export default function StockReturns() {
                   <SearchableSelect
                     placeholder="Search Batch by item name, code, or batch code..."
                     options={eligibleItems.map(b => ({
-                      value: b.id,
+                      value: b.raw_id || b.raw_batch_id || b.batch_id,
                       label: `${b.item_name} (Batch: ${b.batch_code})`,
                       sublabel: `Avail: ${b.quantity_available} | Max Returnable: ${b.max_returnable_qty} | Exp: ${formatDate(b.expiry_date)}`
                     }))}
                     value={selectedBatchId}
-                    onChange={(val) => setSelectedBatchId(val)}
+                    onChange={handleBatchSelect}
                   />
                 </div>
 
