@@ -24,7 +24,8 @@ import {
   Tag,
   Calendar,
   Layers,
-  AlertCircle
+  AlertCircle,
+  ShoppingBag
 } from 'lucide-react';
 
 export default function BatchInventory() {
@@ -443,6 +444,27 @@ export default function BatchInventory() {
                       <div className="col-span-4 p-3 text-center text-slate-400 text-xs">No active stock balances remaining for this batch.</div>
                     )}
                   </div>
+
+                  {/* Sold Items Summary Box */}
+                  {timelineData.sold_qty > 0 && (
+                    <div className="mt-3 p-3.5 rounded-2xl bg-brand-orange/5 border border-brand-orange/30 dark:border-brand-orange/20 flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-brand-orange/20 shadow-xs">
+                          <ShoppingBag className="w-4 h-4 text-brand-orange" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-brand-orange block">Sold / Dispensed to Patients</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">OPD Customer Sales (All Clinics)</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-black text-brand-orange text-base">{timelineData.sold_qty} units</span>
+                        <span className="text-[10px] text-slate-400 block">
+                          {Math.round((timelineData.sold_qty / (timelineData.batch_info.initial_qty || 1)) * 100)}% of initial stock
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Vertical Chronological Movement Timeline */}

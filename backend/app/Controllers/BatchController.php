@@ -130,10 +130,19 @@ class BatchController extends Controller {
         $stmtMovements->execute([$realBatchId]);
         $timeline = $stmtMovements->fetchAll(PDO::FETCH_ASSOC);
 
+        // 4. Calculate total units sold (CUSTOMER_SALE) for this batch
+        $stmtSold = $pdo->prepare("SELECT COALESCE(SUM(qty), 0) AS total_sold
+                                   FROM `stock_movements_ledger`
+                                   WHERE batch_id = ? AND transaction_type = 'CUSTOMER_SALE'");
+        $stmtSold->execute([$realBatchId]);
+        $soldRow = $stmtSold->fetch(PDO::FETCH_ASSOC);
+        $soldQty = (int)($soldRow['total_sold'] ?? 0);
+
         $this->json([
             'success'          => true,
             'batch_info'       => $batch,
             'location_stocks'  => $locationStocks,
+            'sold_qty'         => $soldQty,
             'timeline'         => $timeline
         ]);
     }
