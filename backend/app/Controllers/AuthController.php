@@ -75,4 +75,50 @@ class AuthController extends Controller {
             'user_id' => $userId
         ]);
     }
+
+    public function updateUser() {
+        $currentUser = $this->requireRoles(['ADMIN']);
+        $body = $this->getRequestBody();
+
+        $rawUserId = UrlSecurity::decrypt($body['user_id'] ?? null);
+        $userId = !empty($rawUserId) ? (int)$rawUserId : (int)($body['raw_user_id'] ?? $body['user_id'] ?? 0);
+
+        if (!$userId || empty($body['full_name']) || empty($body['email']) || empty($body['role'])) {
+            $this->error('User ID, full name, email, and role are required.', 400);
+            return;
+        }
+
+        User::updateUser($userId, $body);
+
+        AuditLogger::log($currentUser['user_id'], $currentUser['username'], $currentUser['role'], 'USER_MGMT', 'UPDATE_USER', null, ['target_user_id' => $userId, 'role' => $body['role']], $currentUser['location_id']);
+
+        $this->json([
+            'success' => true,
+            'message' => 'User permissions and details updated successfully.'
+        ]);
+    }
+
+    public function toggleUserStatus() {
+        $currentUser = $this->requireRoles(['ADMIN']);
+        $body = $this->getRequestBody();
+
+        $rawUserId = UrlSecurity::decrypt($body['user_id'] ?? null);
+        $userId = !empty($rawUserId) ? (int)$rawUserId : (int)($body['raw_user_id'] ?? $body['user_id'] ?? 0);
+
+        $newStatus = ($body['status'] === 'INACTIVE') ? 'INACTIVE' : 'ACTIVE';
+
+        if (!$userId) {
+            $this->error('Valid User ID required.', 400);
+            return;
+        }
+
+        User::toggleStatus($userId, $newStatus);
+
+        AuditLogger::log($currentUser['user_id'], $currentUser['username'], $currentUser['role'], 'USER_MGMT', 'TOGGLE_USER_STATUS', null, ['target_user_id' => $userId, 'status' => $newStatus], $currentUser['location_id']);
+
+        $this->json([
+            'success' => true,
+            'message' => "User account set to {$newStatus}."
+        ]);
+    }
 }

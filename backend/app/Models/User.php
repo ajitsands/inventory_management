@@ -77,4 +77,68 @@ class User extends Model {
         ]);
         return $pdo->lastInsertId();
     }
+
+    public static function updateUser($id, array $data) {
+        $pdo = self::getDB();
+
+        $rawLocId = $data['raw_location_id'] ?? null;
+        $locToken = $data['location_id'] ?? null;
+
+        $targetLocId = null;
+        if (!empty($rawLocId) && is_numeric($rawLocId)) {
+            $targetLocId = (int)$rawLocId;
+        } elseif (!empty($locToken)) {
+            if (is_numeric($locToken)) {
+                $targetLocId = (int)$locToken;
+            } else {
+                $decrypted = UrlSecurity::decrypt($locToken);
+                if (!empty($decrypted) && is_numeric($decrypted)) {
+                    $targetLocId = (int)$decrypted;
+                }
+            }
+        }
+
+        if ($targetLocId !== null && $targetLocId > 0) {
+            $stmtCheck = $pdo->prepare("SELECT id FROM `locations` WHERE id = ?");
+            $stmtCheck->execute([$targetLocId]);
+            if (!$stmtCheck->fetchColumn()) {
+                $targetLocId = null;
+            }
+        } else {
+            $targetLocId = null;
+        }
+
+        if (!empty($data['password'])) {
+            $hash = password_hash($data['password'], PASSWORD_BCRYPT);
+            $stmt = $pdo->prepare("UPDATE `users` 
+                                   SET `full_name` = ?, `email` = ?, `role` = ?, `location_id` = ?, `password_hash` = ? 
+                                   WHERE `id` = ?");
+            $stmt->execute([
+                $data['full_name'],
+                $data['email'],
+                $data['role'],
+                $targetLocId,
+                $hash,
+                (int)$id
+            ]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE `users` 
+                                   SET `full_name` = ?, `email` = ?, `role` = ?, `location_id` = ? 
+                                   WHERE `id` = ?");
+            $stmt->execute([
+                $data['full_name'],
+                $data['email'],
+                $data['role'],
+                $targetLocId,
+                (int)$id
+            ]);
+        }
+        return true;
+    }
+
+    public static function toggleStatus($id, $newStatus) {
+        $pdo = self::getDB();
+        $stmt = $pdo->prepare("UPDATE `users` SET `status` = ? WHERE `id` = ?");
+        return $stmt->execute([$newStatus, (int)$id]);
+    }
 }

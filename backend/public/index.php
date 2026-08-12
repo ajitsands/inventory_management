@@ -12,6 +12,8 @@ $router->post('/api/v1/auth/login', ['AuthController', 'login']);
 $router->get('/api/v1/auth/me', ['AuthController', 'me']);
 $router->get('/api/v1/users', ['AuthController', 'getUsers']);
 $router->post('/api/v1/users', ['AuthController', 'createUser']);
+$router->post('/api/v1/users/update', ['AuthController', 'updateUser']);
+$router->post('/api/v1/users/toggle-status', ['AuthController', 'toggleUserStatus']);
 
 // Master Data & Stock
 $router->get('/api/v1/master-data', ['BatchController', 'getMasterData']);
