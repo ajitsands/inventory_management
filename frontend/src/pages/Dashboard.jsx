@@ -240,17 +240,17 @@ export default function Dashboard({ setActiveTab }) {
               <div className="grid grid-cols-3 gap-2 text-xs pt-1">
                 <div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Total Units</p>
-                  <p className="font-bold text-slate-900 dark:text-slate-100">{loc.total_units || 0} units</p>
+                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{loc.total_units || 0} <span className="text-xs font-normal">units</span></p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Getting Price (Cost)</p>
-                  <p className="font-bold text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400 font-mono text-sm">
                     {formatCurrency(loc.total_cost_valuation, currencyCode, decimalPlaces)}
                   </p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Total Selling Price</p>
-                  <p className="font-bold text-brand-blue dark:text-blue-400 font-mono text-[11px]">
+                  <p className="font-bold text-brand-blue dark:text-blue-400 font-mono text-sm">
                     {formatCurrency(loc.total_sales_valuation, currencyCode, decimalPlaces)}
                   </p>
                 </div>
