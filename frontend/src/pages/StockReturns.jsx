@@ -817,7 +817,12 @@ export default function StockReturns() {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Location *</label>
                 {returnType === 'CLINIC_TO_BRANCH' ? (
                   <SearchableSelect
-                    options={subBranches.map(s => ({ value: s.id, label: `${s.name} (${s.code})` }))}
+                    placeholder="Select Receiving Sub-Branch..."
+                    options={subBranches.filter(s => s.id !== fromLocationId && s.raw_id != fromLocationId).map(s => ({
+                      value: s.id,
+                      label: `${s.name} (${s.code})`,
+                      sublabel: s.type
+                    }))}
                     value={toLocationId}
                     onChange={(val) => setToLocationId(val)}
                   />

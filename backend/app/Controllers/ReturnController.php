@@ -29,12 +29,14 @@ class ReturnController extends Controller
             return;
         }
 
-        // Fetch current active stock batches at this location
-        $sql = "SELECT b.id AS batch_id, b.id AS raw_batch_id, b.batch_code, b.expiry_date, b.quantity_available,
-                       b.unit_cost, b.selling_price, i.id AS item_id, i.id AS raw_item_id, i.name AS item_name, i.item_code, i.unit_of_measure
-                FROM `item_batches` b
+        // Fetch current active stock batches at this location from location_batch_stock
+        $sql = "SELECT lbs.batch_id, lbs.quantity_available,
+                       b.batch_code, b.expiry_date, b.purchase_price AS unit_cost, b.selling_price,
+                       i.id AS item_id, i.name AS item_name, i.item_code, i.unit_of_measure
+                FROM `location_batch_stock` lbs
+                JOIN `item_batches` b ON lbs.batch_id = b.id
                 JOIN `items` i ON b.item_id = i.id
-                WHERE b.location_id = ? AND b.quantity_available > 0 AND b.status = 'ACTIVE'
+                WHERE lbs.location_id = ? AND lbs.quantity_available > 0
                 ORDER BY i.name ASC, b.expiry_date ASC";
 
         $stmt = $pdo->prepare($sql);
@@ -43,7 +45,7 @@ class ReturnController extends Controller
 
         $result = [];
         foreach ($batches as $b) {
-            $batchId = (int)$b['raw_batch_id'];
+            $batchId = (int)$b['batch_id'];
 
             // Calculate total quantity received by this location for this batch
             $stmtRec = $pdo->prepare("SELECT COALESCE(SUM(quantity), 0) AS total_received 
@@ -70,7 +72,9 @@ class ReturnController extends Controller
             $maxReturnable = ($totalReceived > 0) ? min($availQty, $eligibleByTransfer) : $availQty;
 
             $b['raw_id'] = $batchId;
+            $b['raw_batch_id'] = $batchId;
             $b['id'] = UrlSecurity::encrypt($batchId);
+            $b['raw_item_id'] = (int)$b['item_id'];
             $b['item_id'] = UrlSecurity::encrypt($b['raw_item_id']);
             $b['total_received'] = $totalReceived;
             $b['total_returned'] = $totalReturned;
@@ -163,8 +167,11 @@ class ReturnController extends Controller
                     throw new \Exception('Invalid item batch or return quantity specified.');
                 }
 
-                // Verify batch available stock
-                $stmtBatch = $pdo->prepare("SELECT quantity_available, batch_code FROM `item_batches` WHERE id = ? AND location_id = ? FOR UPDATE");
+                // Verify batch available stock from location_batch_stock
+                $stmtBatch = $pdo->prepare("SELECT lbs.quantity_available, b.batch_code 
+                                           FROM `location_batch_stock` lbs
+                                           JOIN `item_batches` b ON lbs.batch_id = b.id
+                                           WHERE lbs.batch_id = ? AND lbs.location_id = ? FOR UPDATE");
                 $stmtBatch->execute([$rawBatchId, $fromLoc]);
                 $batchRow = $stmtBatch->fetch(PDO::FETCH_ASSOC);
 
