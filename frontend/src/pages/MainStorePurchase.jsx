@@ -311,32 +311,28 @@ export default function MainStorePurchase() {
       const selectedVendor = vendors.find(v => v.id === vendorId || v.raw_id == vendorId);
       const selectedQuotation = openQuotations.find(q => q.id === selectedQuotationId || q.raw_id == selectedQuotationId);
 
-      const formattedItems = lineItems.map(l => {
-        const matchedItem = items.find(i => i.id === l.item_id || i.raw_id == l.item_id);
-        return {
-          ...l,
-          raw_item_id: matchedItem?.raw_id || l.raw_item_id
-        };
-      });
+      const payload = {
+        vendor_id: vendorId,
+        raw_vendor_id: selectedVendor?.raw_id,
+        quotation_id: selectedQuotationId || null,
+        raw_quotation_id: selectedQuotation?.raw_id,
+        po_no: poNo,
+        po_date: poDate,
+        vendor_invoice_no: vendorInvoiceNo,
+        vendor_invoice_date: vendorInvoiceDate,
+        remarks: remarks,
+        bill_discount: billDiscount,
+        vat_calculation_mode: settings.vat_calculation_mode,
+        total_vat_amount: totalVat.toFixed(3),
+        grand_total: grandTotal.toFixed(3),
+        items: formattedItems
+      };
 
       let reqOptions = {};
 
       if (attachedFile) {
         const formData = new FormData();
-        formData.append('vendor_id', vendorId);
-        if (selectedVendor?.raw_id) formData.append('raw_vendor_id', selectedVendor.raw_id);
-        if (selectedQuotationId) formData.append('quotation_id', selectedQuotationId);
-        if (selectedQuotation?.raw_id) formData.append('raw_quotation_id', selectedQuotation.raw_id);
-        formData.append('po_no', poNo);
-        formData.append('po_date', poDate);
-        formData.append('vendor_invoice_no', vendorInvoiceNo);
-        formData.append('vendor_invoice_date', vendorInvoiceDate);
-        formData.append('remarks', remarks || '');
-        formData.append('bill_discount', billDiscount || '0.00');
-        formData.append('vat_calculation_mode', settings.vat_calculation_mode);
-        formData.append('total_vat_amount', totalVat.toFixed(3));
-        formData.append('grand_total', grandTotal.toFixed(3));
-        formData.append('items', JSON.stringify(formattedItems));
+        formData.append('payload', JSON.stringify(payload));
         formData.append('document_file', attachedFile);
 
         reqOptions = {
@@ -344,23 +340,6 @@ export default function MainStorePurchase() {
           body: formData
         };
       } else {
-        const payload = {
-          vendor_id: vendorId,
-          raw_vendor_id: selectedVendor?.raw_id,
-          quotation_id: selectedQuotationId || null,
-          raw_quotation_id: selectedQuotation?.raw_id,
-          po_no: poNo,
-          po_date: poDate,
-          vendor_invoice_no: vendorInvoiceNo,
-          vendor_invoice_date: vendorInvoiceDate,
-          remarks: remarks,
-          bill_discount: billDiscount,
-          vat_calculation_mode: settings.vat_calculation_mode,
-          total_vat_amount: totalVat.toFixed(3),
-          grand_total: grandTotal.toFixed(3),
-          items: formattedItems
-        };
-
         reqOptions = {
           method: 'POST',
           body: JSON.stringify(payload)

@@ -14,20 +14,30 @@ class PurchaseController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
-        // Handle multipart FormData submission payload if sent as JSON string in $_POST['payload'] or $_POST['data']
+        // Handle multipart FormData submission payload if sent as JSON string in $_POST['payload']
         if (isset($_POST['payload'])) {
-            $parsedPayload = json_decode($_POST['payload'], true);
+            $rawPayload = $_POST['payload'];
+            if (function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc()) {
+                $rawPayload = stripslashes($rawPayload);
+            }
+            $parsedPayload = json_decode($rawPayload, true);
             if (is_array($parsedPayload)) {
-                $body = array_merge($body, $parsedPayload);
+                $body = array_merge($body, $this->decryptArrayParams($parsedPayload));
             }
         } elseif (isset($_POST['items']) && is_string($_POST['items'])) {
-            $body['items'] = json_decode($_POST['items'], true);
-            if (isset($_POST['po_no'])) $body['po_no'] = $_POST['po_no'];
-            if (isset($_POST['po_date'])) $body['po_date'] = $_POST['po_date'];
-            if (isset($_POST['vendor_invoice_no'])) $body['vendor_invoice_no'] = $_POST['vendor_invoice_no'];
-            if (isset($_POST['vendor_invoice_date'])) $body['vendor_invoice_date'] = $_POST['vendor_invoice_date'];
-            if (isset($_POST['vendor_id'])) $body['vendor_id'] = $_POST['vendor_id'];
-            if (isset($_POST['remarks'])) $body['remarks'] = $_POST['remarks'];
+            $rawItems = $_POST['items'];
+            if (function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc()) {
+                $rawItems = stripslashes($rawItems);
+            }
+            $decodedItems = json_decode($rawItems, true);
+            if (is_array($decodedItems)) {
+                $body['items'] = $this->decryptArrayParams($decodedItems);
+            }
+            foreach ($_POST as $k => $v) {
+                if ($k !== 'items' && $k !== 'payload') {
+                    $body[$k] = $v;
+                }
+            }
         }
 
         // Process uploaded document file if attached
