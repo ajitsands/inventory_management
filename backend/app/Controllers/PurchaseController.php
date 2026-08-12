@@ -14,6 +14,49 @@ class PurchaseController extends Controller
         $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
         $body = $this->getRequestBody();
 
+        // Handle multipart FormData submission payload if sent as JSON string in $_POST['payload'] or $_POST['data']
+        if (isset($_POST['payload'])) {
+            $parsedPayload = json_decode($_POST['payload'], true);
+            if (is_array($parsedPayload)) {
+                $body = array_merge($body, $parsedPayload);
+            }
+        } elseif (isset($_POST['items']) && is_string($_POST['items'])) {
+            $body['items'] = json_decode($_POST['items'], true);
+            if (isset($_POST['po_no'])) $body['po_no'] = $_POST['po_no'];
+            if (isset($_POST['po_date'])) $body['po_date'] = $_POST['po_date'];
+            if (isset($_POST['vendor_invoice_no'])) $body['vendor_invoice_no'] = $_POST['vendor_invoice_no'];
+            if (isset($_POST['vendor_invoice_date'])) $body['vendor_invoice_date'] = $_POST['vendor_invoice_date'];
+            if (isset($_POST['vendor_id'])) $body['vendor_id'] = $_POST['vendor_id'];
+            if (isset($_POST['remarks'])) $body['remarks'] = $_POST['remarks'];
+        }
+
+        // Process uploaded document file if attached
+        $documentUrl = null;
+        $fileKey = isset($_FILES['document_file']) ? 'document_file' : (isset($_FILES['file']) ? 'file' : null);
+
+        if ($fileKey && isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES[$fileKey];
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowedExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+            if (!in_array($ext, $allowedExts)) {
+                $this->error('Invalid document file format. Allowed formats: PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Images (JPG, PNG, GIF, WEBP).', 400);
+                return;
+            }
+
+            $uploadDir = __DIR__ . '/../../uploads/purchase_documents/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+
+            $filename = 'po_doc_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+            $targetPath = $uploadDir . $filename;
+
+            if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                $documentUrl = '/uploads/purchase_documents/' . $filename;
+            }
+        }
+
         $rawVendorId = UrlSecurity::decrypt($body['vendor_id'] ?? null);
         $vendorId = !empty($rawVendorId) ? (int)$rawVendorId : (int)($body['raw_vendor_id'] ?? $body['vendor_id'] ?? 0);
 
@@ -70,10 +113,10 @@ class PurchaseController extends Controller
                 ];
             }
 
-            // Insert Purchase Invoice Header
+            // Insert Purchase Invoice Header with document_url
             $stmtHeader = $pdo->prepare("INSERT INTO `purchase_invoices` 
-                (`invoice_no`, `po_no`, `po_date`, `vendor_invoice_no`, `vendor_invoice_date`, `vendor_id`, `location_id`, `total_amount`, `remarks`, `created_by`)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (`invoice_no`, `po_no`, `po_date`, `vendor_invoice_no`, `vendor_invoice_date`, `vendor_id`, `location_id`, `total_amount`, `remarks`, `document_url`, `created_by`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
             $stmtHeader->execute([
                 $invoiceNo,
@@ -85,6 +128,7 @@ class PurchaseController extends Controller
                 $locationId,
                 $totalAmount,
                 $body['remarks'] ?? null,
+                $documentUrl,
                 $user['user_id']
             ]);
 

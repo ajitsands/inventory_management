@@ -4,7 +4,7 @@ import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Sparkles, FileText, Eye, X } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Sparkles, FileText, Eye, X, Paperclip, UploadCloud, FileCheck, ExternalLink, Download } from 'lucide-react';
 
 export default function MainStorePurchase() {
   const [vendors, setVendors] = useState([]);
@@ -28,6 +28,10 @@ export default function MainStorePurchase() {
   const [vendorInvoiceDate, setVendorInvoiceDate] = useState(todayDate());
   const [remarks, setRemarks] = useState('');
   const [billDiscount, setBillDiscount] = useState('0.00');
+
+  // File Upload State
+  const [attachedFile, setAttachedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
 
   const [lineItems, setLineItems] = useState([]);
 
@@ -245,12 +249,52 @@ export default function MainStorePurchase() {
     ? (grossSubtotal - discountVal + totalVat)
     : (netSubtotalAfterDiscount + totalVat);
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    if (!allowedTypes.includes(ext)) {
+      setMessage({
+        type: 'error',
+        text: 'Invalid file format. Allowed types: PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Images (JPG, PNG, GIF, WEBP).'
+      });
+      return;
+    }
+
+    setAttachedFile(file);
+    setFilePreview({
+      name: file.name,
+      size: (file.size / 1024).toFixed(1) + ' KB',
+      ext: ext.toUpperCase(),
+      isImage: ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext),
+      url: ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? URL.createObjectURL(file) : null
+    });
+    setMessage(null);
+  };
+
+  const removeFile = () => {
+    setAttachedFile(null);
+    setFilePreview(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
 
     if (!vendorId) {
-      setMessage({ type: 'error', text: 'Please select a vendor/supplier.' });
+      setMessage({ type: 'error', text: 'Please select a vendor supplier.' });
+      return;
+    }
+    if (!vendorInvoiceNo) {
+      setMessage({ type: 'error', text: 'Please enter the vendor invoice number.' });
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      setMessage({ type: 'error', text: 'Add at least 1 item line to post the purchase.' });
       return;
     }
 
@@ -267,39 +311,72 @@ export default function MainStorePurchase() {
       const selectedVendor = vendors.find(v => v.id === vendorId || v.raw_id == vendorId);
       const selectedQuotation = openQuotations.find(q => q.id === selectedQuotationId || q.raw_id == selectedQuotationId);
 
-      const payload = {
-        vendor_id: vendorId,
-        raw_vendor_id: selectedVendor?.raw_id,
-        quotation_id: selectedQuotationId || null,
-        raw_quotation_id: selectedQuotation?.raw_id,
-        po_no: poNo,
-        po_date: poDate,
-        vendor_invoice_no: vendorInvoiceNo,
-        vendor_invoice_date: vendorInvoiceDate,
-        remarks: remarks,
-        bill_discount: billDiscount,
-        vat_calculation_mode: settings.vat_calculation_mode,
-        total_vat_amount: totalVat.toFixed(3),
-        grand_total: grandTotal.toFixed(3),
-        items: lineItems.map(l => {
-          const matchedItem = items.find(i => i.id === l.item_id || i.raw_id == l.item_id);
-          return {
-            ...l,
-            raw_item_id: matchedItem?.raw_id || l.raw_item_id
-          };
-        })
-      };
-
-      const res = await apiFetch('/purchase/create', {
-        method: 'POST',
-        body: JSON.stringify(payload)
+      const formattedItems = lineItems.map(l => {
+        const matchedItem = items.find(i => i.id === l.item_id || i.raw_id == l.item_id);
+        return {
+          ...l,
+          raw_item_id: matchedItem?.raw_id || l.raw_item_id
+        };
       });
+
+      let reqOptions = {};
+
+      if (attachedFile) {
+        const formData = new FormData();
+        formData.append('vendor_id', vendorId);
+        if (selectedVendor?.raw_id) formData.append('raw_vendor_id', selectedVendor.raw_id);
+        if (selectedQuotationId) formData.append('quotation_id', selectedQuotationId);
+        if (selectedQuotation?.raw_id) formData.append('raw_quotation_id', selectedQuotation.raw_id);
+        formData.append('po_no', poNo);
+        formData.append('po_date', poDate);
+        formData.append('vendor_invoice_no', vendorInvoiceNo);
+        formData.append('vendor_invoice_date', vendorInvoiceDate);
+        formData.append('remarks', remarks || '');
+        formData.append('bill_discount', billDiscount || '0.00');
+        formData.append('vat_calculation_mode', settings.vat_calculation_mode);
+        formData.append('total_vat_amount', totalVat.toFixed(3));
+        formData.append('grand_total', grandTotal.toFixed(3));
+        formData.append('items', JSON.stringify(formattedItems));
+        formData.append('document_file', attachedFile);
+
+        reqOptions = {
+          method: 'POST',
+          body: formData
+        };
+      } else {
+        const payload = {
+          vendor_id: vendorId,
+          raw_vendor_id: selectedVendor?.raw_id,
+          quotation_id: selectedQuotationId || null,
+          raw_quotation_id: selectedQuotation?.raw_id,
+          po_no: poNo,
+          po_date: poDate,
+          vendor_invoice_no: vendorInvoiceNo,
+          vendor_invoice_date: vendorInvoiceDate,
+          remarks: remarks,
+          bill_discount: billDiscount,
+          vat_calculation_mode: settings.vat_calculation_mode,
+          total_vat_amount: totalVat.toFixed(3),
+          grand_total: grandTotal.toFixed(3),
+          items: formattedItems
+        };
+
+        reqOptions = {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        };
+      }
+
+      const res = await apiFetch('/purchase/create', reqOptions);
 
       if (res.success) {
         setMessage({ type: 'success', text: `Purchase Invoice ${res.invoice_no} posted successfully to Main Store!` });
         setPoNo(`PO-${dateString()}-${rand4()}`);
         setVendorInvoiceNo(`VINV-${rand4()}`);
         setBillDiscount('0.00');
+        setRemarks('');
+        setAttachedFile(null);
+        setFilePreview(null);
         setSelectedQuotationId('');
         setLineItems([createEmptyLine(settings.vat_percent || '10.00')]);
         loadData();
@@ -351,6 +428,23 @@ export default function MainStorePurchase() {
       header: `Total Amount (${currencyCode})`,
       accessor: 'total_amount',
       render: (p) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(p.total_amount, currencyCode, decimalPlaces)}</span>
+    },
+    {
+      header: 'Attached Document',
+      accessor: 'document_url',
+      render: (p) => p.document_url ? (
+        <a
+          href={p.document_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40 text-[11px] font-bold hover:bg-emerald-100 transition-all shadow-2xs"
+          title="Click to view or download uploaded purchase document"
+        >
+          <Paperclip className="w-3.5 h-3.5" /> View File
+        </a>
+      ) : (
+        <span className="text-slate-400 text-[11px] italic">No document</span>
+      )
     },
     {
       header: 'Posted By',
@@ -484,6 +578,62 @@ export default function MainStorePurchase() {
               placeholder="e.g. Received via Express Delivery"
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
             />
+          </div>
+
+          {/* Document Attachment Upload Dropzone */}
+          <div className="md:col-span-3 pt-2">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-brand-blue font-bold">
+                <Paperclip className="w-4 h-4 text-brand-blue" />
+                Upload Invoice Document / Bill Attachment (Word, PDF, Excel, Images)
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Allowed: .pdf, .doc, .docx, .xls, .xlsx, .jpg, .jpeg, .png, .gif, .webp
+              </span>
+            </label>
+
+            {!filePreview ? (
+              <label className="border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-brand-blue dark:hover:border-brand-blue rounded-2xl p-4 flex items-center justify-center gap-3 cursor-pointer bg-slate-50/50 dark:bg-slate-950/40 transition-all group">
+                <input
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
+                  className="hidden"
+                />
+                <div className="p-2.5 rounded-xl bg-brand-blue/10 text-brand-blue group-hover:scale-105 transition-transform">
+                  <UploadCloud className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block group-hover:text-brand-blue">
+                    Click to browse or drop supplier document file here
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">
+                    Upload original vendor bill, PO receipt, PDF invoice, Word document, Excel spreadsheet or scanned image
+                  </span>
+                </div>
+              </label>
+            ) : (
+              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between animate-in fade-in duration-150">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-1">
+                    <FileCheck className="w-4 h-4" />
+                    <span>{filePreview.ext}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">{filePreview.name}</span>
+                    <span className="text-[10px] text-slate-500 block">Size: {filePreview.size} • Ready for upload</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeFile}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                  title="Remove attached file"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -742,6 +892,23 @@ export default function MainStorePurchase() {
                 <span className="text-slate-400 block font-semibold text-[10px] uppercase">PO Date</span>
                 <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{formatDate(selectedInvoice.po_date)}</span>
               </div>
+
+              {selectedInvoice.document_url && (
+                <div className="col-span-2 md:col-span-4 bg-emerald-50 dark:bg-emerald-950/60 p-3 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center justify-between mt-1">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
+                    <Paperclip className="w-4 h-4 text-emerald-600" />
+                    <span className="font-bold text-xs">Original Supplier Document / Receipt Attached</span>
+                  </div>
+                  <a
+                    href={selectedInvoice.document_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Open / Download Attachment
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Items Breakdown Table */}
