@@ -109,13 +109,18 @@ export default function Header({ activeTab, setActiveTab }) {
               <div className="p-4 bg-slate-50/80 dark:bg-slate-950/80">
                 <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{user?.full_name}</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">@{user?.username} • {user?.email}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${roleBadge.bg}`}>
-                    {roleBadge.label}
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                    {user?.location_name || 'Central Store'}
-                  </span>
+                <div className="mt-2.5 space-y-1.5">
+                  <div>
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${roleBadge.bg}`}>
+                      {roleBadge.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-1.5 text-slate-600 dark:text-slate-300 pt-0.5">
+                    <Building2 className="w-3.5 h-3.5 text-brand-blue shrink-0" />
+                    <span className="font-semibold text-[11px] leading-tight">
+                      {user?.location_name || 'Central Main Warehouse & Branch'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
