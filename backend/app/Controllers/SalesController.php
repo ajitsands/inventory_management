@@ -149,18 +149,33 @@ class SalesController extends Controller
         $user = $this->requireAuth();
         $pdo = Model::getDB();
 
+        $rawLocId = UrlSecurity::decrypt($_GET['location_id'] ?? $_GET['clinic_location_id'] ?? null);
+        $locId = !empty($rawLocId) ? (int)$rawLocId : (int)($_GET['raw_location_id'] ?? $_GET['location_id'] ?? $_GET['clinic_location_id'] ?? 0);
+
+        if ($user['role'] !== 'ADMIN' && !empty($user['location_id'])) {
+            $locId = (int)$user['location_id'];
+        }
+
+        $where = ["1=1"];
+        $params = [];
+
+        if ($locId > 0) {
+            $where[] = "si.clinic_location_id = ?";
+            $params[] = $locId;
+        }
+
+        $whereSql = implode(' AND ', $where);
+
         $sql = "SELECT si.*, si.sales_invoice_no AS invoice_no, l.name AS clinic_name, u.full_name AS created_by_name
                 FROM `sales_invoices` si
                 LEFT JOIN `locations` l ON si.clinic_location_id = l.id
-                LEFT JOIN `users` u ON si.created_by = u.id";
-        
-        if ($user['role'] === 'OPD_USER' && !empty($user['location_id'])) {
-            $sql .= " WHERE si.clinic_location_id = " . (int)$user['location_id'];
-        }
+                LEFT JOIN `users` u ON si.created_by = u.id
+                WHERE {$whereSql}
+                ORDER BY si.id DESC";
 
-        $sql .= " ORDER BY si.id DESC";
-
-        $invoices = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $invoices = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $stmtItems = $pdo->prepare("SELECT sii.*, i.name AS item_name, i.item_code, b.batch_code, b.expiry_date
                                     FROM `sales_invoice_items` sii

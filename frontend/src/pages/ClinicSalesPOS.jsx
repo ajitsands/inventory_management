@@ -54,12 +54,15 @@ export default function ClinicSalesPOS() {
       const selectedObj = allClinicsList.find(c => c.id === clinicLocId || c.raw_id == clinicLocId);
       const locParam = selectedObj?.raw_id || clinicLocId;
 
-      const [stockRes, docRes] = await Promise.all([
+      const [stockRes, docRes, salesRes] = await Promise.all([
         apiFetch(`/stock/location?location_id=${encodeURIComponent(locParam)}`),
-        apiFetch(`/doctors/by-location?location_id=${encodeURIComponent(locParam)}`)
+        apiFetch(`/doctors/by-location?location_id=${encodeURIComponent(locParam)}`),
+        apiFetch(`/sales/list?location_id=${encodeURIComponent(locParam)}`)
       ]);
 
       setAvailableStock(stockRes.batches || []);
+      setSalesInvoices(salesRes.invoices || []);
+
       const docs = docRes.doctors || [];
       setClinicDoctors(docs);
 
