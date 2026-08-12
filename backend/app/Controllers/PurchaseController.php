@@ -54,15 +54,22 @@ class PurchaseController extends Controller
                 return;
             }
 
-            $uploadDir = __DIR__ . '/../../uploads/purchase_documents/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
+            $uploadDirRoot = __DIR__ . '/../../../uploads/purchase_documents/';
+            $uploadDirBackend = __DIR__ . '/../../uploads/purchase_documents/';
+
+            if (!is_dir($uploadDirRoot)) {
+                @mkdir($uploadDirRoot, 0777, true);
+            }
+            if (!is_dir($uploadDirBackend)) {
+                @mkdir($uploadDirBackend, 0777, true);
             }
 
             $filename = 'po_doc_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
-            $targetPath = $uploadDir . $filename;
+            $targetPathBackend = $uploadDirBackend . $filename;
+            $targetPathRoot = $uploadDirRoot . $filename;
 
-            if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+            if (move_uploaded_file($file['tmp_name'], $targetPathBackend)) {
+                @copy($targetPathBackend, $targetPathRoot);
                 $documentUrl = '/uploads/purchase_documents/' . $filename;
             }
         }
