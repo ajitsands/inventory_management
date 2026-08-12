@@ -44,6 +44,9 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
   const isReportsActive = activeTab === 'batches' || activeTab === 'reports';
   const canSeeMasters = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
   const canSeeMainStorePurchase = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
+  const canSeeSubBranchInvoicing = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
+  const canSeeClinicTransfer = ['ADMIN', 'STORE_MANAGER'].includes(role);
+  const canSeeStockReturns = ['ADMIN', 'STORE_MANAGER'].includes(role);
   const canSeeReports = ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'].includes(role);
 
   return (
@@ -157,7 +160,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
         )}
 
         {/* 5. Sub-Branch Invoicing */}
-        {canSeeMasters && (
+        {canSeeSubBranchInvoicing && (
           <button
             onClick={() => { setActiveTab('branch-transfer'); setMastersOpen(false); setReportsOpen(false); }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
@@ -172,7 +175,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
         )}
 
         {/* 6. Clinic Stock Transfer */}
-        {canSeeMasters && (
+        {canSeeClinicTransfer && (
           <button
             onClick={() => { setActiveTab('clinic-transfer'); setMastersOpen(false); setReportsOpen(false); }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
@@ -200,7 +203,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
         </button>
 
         {/* 8. Stock Returns */}
-        {canSeeMasters && (
+        {canSeeStockReturns && (
           <button
             onClick={() => { setActiveTab('returns'); setMastersOpen(false); setReportsOpen(false); }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${

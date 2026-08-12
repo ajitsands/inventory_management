@@ -23,7 +23,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'] },
     ...(isGlobalOrMainAdmin ? [{ id: 'purchase', label: 'Vendor Purchase (Main Store)', icon: ShoppingCart, roles: ['ADMIN', 'STORE_MANAGER'] }] : []),
-    { id: 'branch-transfer', label: 'Sub-Branch Invoicing', icon: GitPullRequest, roles: ['ADMIN', 'STORE_MANAGER'] },
+    ...(isGlobalOrMainAdmin ? [{ id: 'branch-transfer', label: 'Sub-Branch Invoicing', icon: GitPullRequest, roles: ['ADMIN', 'STORE_MANAGER'] }] : []),
     { id: 'clinic-transfer', label: 'Clinic Stock Transfer', icon: Building, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'opd-sales', label: 'OPD Dispensing (FIFO)', icon: Stethoscope, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER'] },
     { id: 'returns', label: 'Stock Returns & Defectives', icon: RotateCcw, roles: ['ADMIN', 'STORE_MANAGER'] },
