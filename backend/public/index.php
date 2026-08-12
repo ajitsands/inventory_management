@@ -16,6 +16,7 @@ $router->post('/api/v1/users', ['AuthController', 'createUser']);
 // Master Data & Stock
 $router->get('/api/v1/master-data', ['BatchController', 'getMasterData']);
 $router->get('/api/v1/stock/location', ['BatchController', 'getStockByLocation']);
+$router->get('/api/v1/batches/track-timeline', ['BatchController', 'trackBatchTimeline']);
 
 // Item Master Routes
 $router->get('/api/v1/items', ['ItemController', 'index']);
