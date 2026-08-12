@@ -25,7 +25,8 @@ import {
   ArrowRightLeft,
   X,
   FileCheck,
-  ArrowUpRight
+  ArrowUpRight,
+  ArrowRight
 } from 'lucide-react';
 
 const RETURN_REASON_OPTIONS = [
