@@ -331,7 +331,11 @@ export default function ClinicSalesPOS() {
     {
       header: 'Invoice #',
       accessor: 'invoice_no',
-      render: (s) => <span className="font-mono font-bold text-brand-blue">{s.invoice_no}</span>
+      render: (s) => (
+        <span className="font-mono font-bold text-brand-blue">
+          {s.sales_invoice_no || s.invoice_no || s.invoice_number || `INV-${s.raw_id || s.id}`}
+        </span>
+      )
     },
     {
       header: 'Patient / Customer',

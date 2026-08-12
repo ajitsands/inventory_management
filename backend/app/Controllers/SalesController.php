@@ -149,10 +149,10 @@ class SalesController extends Controller
         $user = $this->requireAuth();
         $pdo = Model::getDB();
 
-        $sql = "SELECT si.*, l.name AS clinic_name, u.full_name AS created_by_name
+        $sql = "SELECT si.*, si.sales_invoice_no AS invoice_no, l.name AS clinic_name, u.full_name AS created_by_name
                 FROM `sales_invoices` si
-                JOIN `locations` l ON si.clinic_location_id = l.id
-                JOIN `users` u ON si.created_by = u.id";
+                LEFT JOIN `locations` l ON si.clinic_location_id = l.id
+                LEFT JOIN `users` u ON si.created_by = u.id";
         
         if ($user['role'] === 'OPD_USER' && !empty($user['location_id'])) {
             $sql .= " WHERE si.clinic_location_id = " . (int)$user['location_id'];
