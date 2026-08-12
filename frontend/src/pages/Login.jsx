@@ -49,11 +49,11 @@ export default function Login() {
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-blue/10 dark:bg-brand-blue/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-brand-orange/10 dark:bg-brand-orange/15 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md bg-white dark:bg-slate-900/90 glass-panel p-8 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-xl dark:shadow-2xl relative z-10">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-900/90 glass-panel p-8 sm:p-10 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-2xl relative z-10">
         {/* Logo & Header */}
         <div className="text-center mb-6">
-          <div className="inline-block p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-inner mb-3">
-            <img src="/logo.png" alt="Organization Logo" className="h-12 w-auto object-contain mx-auto" />
+          <div className="inline-block p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-inner mb-4">
+            <img src="/logo.png" alt="Organization Logo" className="h-24 sm:h-28 md:h-32 w-auto object-contain mx-auto max-w-full drop-shadow-sm" />
           </div>
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 font-heading tracking-tight">
             Inventory Management System
