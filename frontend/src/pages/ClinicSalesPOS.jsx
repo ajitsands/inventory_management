@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import DataTable from '../components/common/DataTable';
 import SearchableSelect from '../components/common/SearchableSelect';
 import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
-import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X, FileText, Calendar, User } from 'lucide-react';
+import { Stethoscope, ShoppingBag, Trash2, CheckCircle2, AlertCircle, Calculator, Tag, Search, Plus, HelpCircle, X, FileText, Calendar, User, Building2 } from 'lucide-react';
 
 export default function ClinicSalesPOS() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+
+  const [clinics, setClinics] = useState([]);
+  const [selectedClinicId, setSelectedClinicId] = useState('');
+  
   const [customers, setCustomers] = useState([]);
   const [availableStock, setAvailableStock] = useState([]);
   const [salesInvoices, setSalesInvoices] = useState([]);
   const [clinicDoctors, setClinicDoctors] = useState([]);
   const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
   const [loading, setLoading] = useState(true);
+  const [stockLoading, setStockLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -31,19 +39,19 @@ export default function ClinicSalesPOS() {
   // Detail Modal State for Sales Invoice Breakdown
   const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState(null);
 
-  const loadData = async () => {
+  const fetchClinicStockAndDoctors = async (clinicLocId, allClinicsList = clinics) => {
+    if (!clinicLocId) return;
+    setStockLoading(true);
     try {
-      const [custRes, stockRes, salesRes, docRes, settingsRes] = await Promise.all([
-        apiFetch('/customers'),
-        apiFetch('/stock/location?location_id=4'), // Clinic OPD #1
-        apiFetch('/sales/list'),
-        apiFetch('/doctors/by-location?location_id=4'), // Doctors for Clinic #1
-        apiFetch('/settings')
+      const selectedObj = allClinicsList.find(c => c.id === clinicLocId || c.raw_id == clinicLocId);
+      const locParam = selectedObj?.raw_id || clinicLocId;
+
+      const [stockRes, docRes] = await Promise.all([
+        apiFetch(`/stock/location?location_id=${encodeURIComponent(locParam)}`),
+        apiFetch(`/doctors/by-location?location_id=${encodeURIComponent(locParam)}`)
       ]);
-      setCustomers(custRes.customers || []);
+
       setAvailableStock(stockRes.batches || []);
-      setSalesInvoices(salesRes.invoices || []);
-      
       const docs = docRes.doctors || [];
       setClinicDoctors(docs);
 
@@ -52,6 +60,27 @@ export default function ClinicSalesPOS() {
       } else {
         setDoctorName('Dr. Alexander Smith');
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      const [masterRes, custRes, salesRes, settingsRes] = await Promise.all([
+        apiFetch('/master-data'),
+        apiFetch('/customers'),
+        apiFetch('/sales/list'),
+        apiFetch('/settings')
+      ]);
+
+      const clns = (masterRes.locations || []).filter(l => l.type === 'CLINIC');
+      setClinics(clns);
+
+      setCustomers(custRes.customers || []);
+      setSalesInvoices(salesRes.invoices || []);
 
       const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
@@ -59,6 +88,22 @@ export default function ClinicSalesPOS() {
       if (custRes.customers && custRes.customers.length > 0) {
         setSelectedCustomerId(custRes.customers[0].id);
       }
+
+      // Clinic Location Context Selection
+      const userLocId = user?.location_id || user?.raw_location_id;
+      const userClinic = clns.find(c => c.id == userLocId || c.raw_id == userLocId);
+
+      let initialClinicId = '';
+      if (userClinic) {
+        initialClinicId = userClinic.id;
+      } else if (clns.length > 0) {
+        initialClinicId = clns[0].id;
+      } else {
+        initialClinicId = 4; // Fallback Clinic ID
+      }
+
+      setSelectedClinicId(initialClinicId);
+      await fetchClinicStockAndDoctors(initialClinicId, clns);
     } catch (err) {
       console.error(err);
     } finally {
@@ -69,6 +114,13 @@ export default function ClinicSalesPOS() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleClinicChange = (newClinicId) => {
+    setSelectedClinicId(newClinicId);
+    setCart([]);
+    setMessage({ type: 'success', text: 'Switched clinic context. Available OPD stock batches updated.' });
+    fetchClinicStockAndDoctors(newClinicId);
+  };
 
   useEffect(() => {
     if (message) {
@@ -118,35 +170,33 @@ export default function ClinicSalesPOS() {
   const removeFromCart = (index) => setCart(cart.filter((_, i) => i !== index));
 
   // Filter available stock by search query
-  const filteredStock = availableStock.filter(b => {
+  const filteredStock = availableStock.filter(batch => {
     if (!stockSearchTerm.trim()) return true;
-    const query = stockSearchTerm.toLowerCase();
+    const q = stockSearchTerm.toLowerCase();
     return (
-      (b.item_name && b.item_name.toLowerCase().includes(query)) ||
-      (b.item_code && b.item_code.toLowerCase().includes(query)) ||
-      (b.batch_code && b.batch_code.toLowerCase().includes(query))
+      (batch.item_name && batch.item_name.toLowerCase().includes(q)) ||
+      (batch.batch_code && batch.batch_code.toLowerCase().includes(q)) ||
+      (batch.item_code && batch.item_code.toLowerCase().includes(q))
     );
   });
 
-  // Calculations
+  // Financial Computations for Cart & Checkout
   const isNoVat = settings.vat_calculation_mode === 'NO_VAT' || parseFloat(settings.vat_percent || 0) === 0;
-  const isItemWiseVat = !isNoVat && settings.vat_calculation_mode === 'ITEM_WISE';
+  const isItemWiseVat = settings.vat_calculation_mode === 'ITEM_WISE';
   const defaultVatRate = isNoVat ? 0 : parseFloat(settings.vat_percent || 10.00);
 
-  const grossTotal = cart.reduce((acc, item) => acc + (item.selling_price * item.qty), 0);
+  const grossTotal = cart.reduce((acc, item) => acc + (parseFloat(item.selling_price || 0) * parseInt(item.qty || 0)), 0);
   const discountVal = parseFloat(discountAmount || 0);
   const netSubtotalAfterDiscount = Math.max(0, grossTotal - discountVal);
-
-  const calculateItemWiseTotalVat = () => isNoVat ? 0 : cart.reduce((acc, item) => {
-    const itemGross = item.selling_price * item.qty;
-    const vatRate = parseFloat(item.vat_percent || 0);
-    return acc + (itemGross * (vatRate / 100));
-  }, 0);
 
   const totalVat = isNoVat
     ? 0
     : isItemWiseVat
-    ? calculateItemWiseTotalVat()
+    ? cart.reduce((acc, item) => {
+        const itemGross = parseFloat(item.selling_price || 0) * parseInt(item.qty || 0);
+        const itemVatRate = parseFloat(item.vat_percent || defaultVatRate);
+        return acc + (itemGross * (itemVatRate / 100));
+      }, 0)
     : (netSubtotalAfterDiscount * (defaultVatRate / 100));
 
   const grandTotal = isNoVat || isItemWiseVat
@@ -178,9 +228,11 @@ export default function ClinicSalesPOS() {
     setSubmitting(true);
     try {
       const selectedCust = customers.find(c => c.id === selectedCustomerId || c.raw_id == selectedCustomerId);
+      const selectedClinicObj = clinics.find(c => c.id === selectedClinicId || c.raw_id == selectedClinicId);
 
       const payload = {
-        clinic_location_id: 4, // Clinic OPD #1
+        clinic_location_id: selectedClinicId,
+        raw_clinic_location_id: selectedClinicObj?.raw_id || selectedClinicId,
         customer_id: selectedCustomerId,
         raw_customer_id: selectedCust?.raw_id,
         customer_name: selectedCust?.name || 'Walk-in Patient',
@@ -200,39 +252,32 @@ export default function ClinicSalesPOS() {
         }))
       };
 
-      const res = await apiFetch('/sales/create', {
+      const res = await apiFetch('/sales', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
 
       if (res.success) {
-        setMessage({ type: 'success', text: `Sales Invoice ${res.sales_invoice_no || res.invoice_no} generated and stock deducted via FIFO!` });
+        setMessage({ type: 'success', text: `Patient Sales Invoice ${res.invoice_no} posted successfully! Stock debited with FIFO automated allocation.` });
         setCart([]);
         setDiscountAmount('0.00');
-        loadData();
+        fetchClinicStockAndDoctors(selectedClinicId);
+
+        const salesRes = await apiFetch('/sales/list');
+        setSalesInvoices(salesRes.invoices || []);
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.message || 'Failed to complete POS sale' });
+      setMessage({ type: 'error', text: err.message || 'Dispensing sales invoice posting failed' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const invoiceColumns = [
+  const salesColumns = [
     {
-      header: 'Sales Invoice #',
-      accessor: 'sales_invoice_no',
-      render: (s) => (
-        <button
-          type="button"
-          onClick={() => setSelectedInvoiceDetail(s)}
-          className="font-mono font-bold text-brand-orange hover:underline text-left cursor-pointer flex items-center gap-1 group"
-          title="Click to view full invoice items breakdown"
-        >
-          <FileText className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-          {s.sales_invoice_no || s.invoice_no}
-        </button>
-      )
+      header: 'Invoice #',
+      accessor: 'invoice_no',
+      render: (s) => <span className="font-mono font-bold text-brand-blue">{s.invoice_no}</span>
     },
     {
       header: 'Patient / Customer',
@@ -262,6 +307,7 @@ export default function ClinicSalesPOS() {
   ];
 
   const selectedCustomerObj = customers.find(c => c.id === selectedCustomerId || c.raw_id == selectedCustomerId);
+  const selectedClinicObj = clinics.find(c => c.id === selectedClinicId || c.raw_id == selectedClinicId);
 
   const doctorOptions = clinicDoctors.length > 0 ? clinicDoctors.map(d => ({
     value: d.name,
@@ -289,8 +335,41 @@ export default function ClinicSalesPOS() {
             VAT Mode: {isNoVat ? 'NO VAT (0%)' : isItemWiseVat ? 'Line Item Tax' : 'Total Bill Tax'}
           </span>
           <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 text-xs font-bold">
-            Clinic Outlet ({currencyCode})
+            {selectedClinicObj ? selectedClinicObj.name : 'Clinic Outlet'} ({currencyCode})
           </span>
+        </div>
+      </div>
+
+      {/* Active OPD Clinic Outlet Context Selector Card */}
+      <div className="bg-white dark:bg-slate-900 glass-panel p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Active OPD Clinic Outlet Context</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {isAdmin ? 'Select a clinic outlet to load its available OPD stock batches and dispense patient sales' : 'Locked to your assigned clinic outlet context'}
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full md:w-80">
+          {isAdmin ? (
+            <SearchableSelect
+              placeholder="Select Clinic Outlet..."
+              options={clinics.map(c => ({ value: c.id, label: `${c.name} (${c.code})`, sublabel: c.type }))}
+              value={selectedClinicId}
+              onChange={(val) => handleClinicChange(val)}
+            />
+          ) : (
+            <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between shadow-xs">
+              <span>{selectedClinicObj ? `${selectedClinicObj.name} (${selectedClinicObj.code})` : 'Assigned Clinic Outlet'}</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 uppercase">
+                Clinic Context
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -309,11 +388,13 @@ export default function ClinicSalesPOS() {
         <div className="lg:col-span-7 bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
           <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between gap-4">
             <div>
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Available Clinic OPD Stock Batches</h3>
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Available Clinic OPD Stock Batches ({selectedClinicObj?.name || 'Clinic Outlet'})
+              </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Click any item below to add directly into the Consumption List</p>
             </div>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono">
-              {filteredStock.length} Batches
+              {stockLoading ? 'Loading...' : `${filteredStock.length} Batches`}
             </span>
           </div>
 
@@ -324,7 +405,7 @@ export default function ClinicSalesPOS() {
               type="text"
               value={stockSearchTerm}
               onChange={(e) => setStockSearchTerm(e.target.value)}
-              placeholder="Search Clinic Available Stock by item name, code, or batch code..."
+              placeholder={`Search ${selectedClinicObj?.name || 'Clinic'} Stock by item name, code, or batch code...`}
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-orange font-semibold"
             />
             {stockSearchTerm && (
@@ -338,432 +419,217 @@ export default function ClinicSalesPOS() {
           </div>
 
           {/* Stock Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[440px] overflow-y-auto pr-1">
-            {filteredStock.map(batch => {
-              const bId = batch.batch_id || batch.id;
-              const cartMatch = cart.find(c => c.batch_id === bId);
-              const inCartQty = cartMatch ? cartMatch.qty : 0;
+          {stockLoading ? (
+            <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400 animate-pulse">
+              Fetching OPD Stock Batches for {selectedClinicObj?.name || 'Selected Clinic'}...
+            </div>
+          ) : filteredStock.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-400 dark:text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+              No active stock batches found at {selectedClinicObj?.name || 'Selected Clinic'}. Transfer stock from Sub-Branch first.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[440px] overflow-y-auto pr-1">
+              {filteredStock.map(batch => {
+                const bId = batch.batch_id || batch.id;
+                const cartMatch = cart.find(c => c.batch_id === bId);
+                const inCartQty = cartMatch ? cartMatch.qty : 0;
 
-              return (
-                <div
-                  key={bId}
-                  onClick={() => addToCart(batch)}
-                  className={`p-4 rounded-2xl border transition-all space-y-2 group shadow-xs relative cursor-pointer ${
-                    inCartQty > 0
-                      ? 'bg-amber-50/60 dark:bg-amber-950/30 border-brand-orange/60'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-brand-orange dark:hover:border-brand-orange'
-                  }`}
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs group-hover:text-brand-orange transition-colors">
+                return (
+                  <div
+                    key={bId}
+                    onClick={() => addToCart(batch)}
+                    className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 hover:border-brand-orange hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-all cursor-pointer space-y-2 group shadow-2xs relative"
+                  >
+                    {inCartQty > 0 && (
+                      <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-brand-orange text-white text-[10px] font-extrabold shadow-sm">
+                        {inCartQty} in cart
+                      </span>
+                    )}
+
+                    <div className="flex items-start justify-between gap-2 pr-12">
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug group-hover:text-brand-orange transition-colors">
                         {batch.item_name}
-                      </h4>
-                      <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Code: {batch.item_code}</p>
+                      </p>
                     </div>
 
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-brand-orange/10 text-brand-orange border border-brand-orange/30">
-                        {batch.batch_code}
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-mono text-slate-500 dark:text-slate-400">Batch: {batch.batch_code}</span>
+                      <span className="font-mono text-slate-400 text-[10px]">Exp: {formatDate(batch.expiry_date)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-800/60 text-xs">
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(batch.selling_price || 0, currencyCode, decimalPlaces)}
                       </span>
-                      {inCartQty > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40">
-                          In List ({inCartQty})
-                        </span>
-                      )}
+                      <span className="font-bold text-slate-700 dark:text-slate-300">
+                        Avail: {batch.quantity_available} units
+                      </span>
                     </div>
                   </div>
-
-                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200 dark:border-slate-800/80">
-                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(batch.selling_price, currencyCode, decimalPlaces)}
-                    </span>
-                    <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px] flex items-center gap-1">
-                      Stock: <strong className="text-slate-800 dark:text-slate-200">{batch.quantity_available}</strong>
-                      <span className="text-brand-orange font-bold group-hover:underline flex items-center gap-0.5">
-                        <Plus className="w-3 h-3" /> Add
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-
-            {filteredStock.length === 0 && (
-              <div className="col-span-2 p-8 text-center text-slate-400 text-xs bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
-                No clinic stock batches found matching "{stockSearchTerm}".
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Right Column: Consumption List & Checkout Cart Form */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-5 shadow-xs flex flex-col justify-between">
-          <form onSubmit={handleOpenConfirm} className="space-y-4">
+        {/* Right Column: POS Consumption List Cart & Patient Checkout Form */}
+        <div className="lg:col-span-5 space-y-4">
+          <form onSubmit={handleOpenConfirm} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
             <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-brand-orange" /> OPD Dispensing Consumption List
+                <ShoppingBag className="w-4 h-4 text-brand-orange" />
+                Patient OPD Consumption List ({cart.length})
               </h3>
-              <span className="text-xs font-bold text-brand-orange bg-amber-50 dark:bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
-                {cart.length} Item(s)
-              </span>
+              {cart.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCart([])}
+                  className="text-[11px] text-rose-600 hover:underline font-bold"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Patient / Customer *</label>
-              <SearchableSelect
-                placeholder="Search Patient / Customer..."
-                options={customers.map(c => ({ value: c.id, label: c.name, sublabel: `Phone: ${c.phone || 'N/A'}` }))}
-                value={selectedCustomerId}
-                onChange={(val) => setSelectedCustomerId(val)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                <span>Attending Doctor / Physician *</span>
-                <span className="text-[10px] text-brand-orange font-semibold">Assigned to Clinic</span>
-              </label>
-              <SearchableSelect
-                placeholder="Select Attending Doctor..."
-                options={doctorOptions}
-                value={doctorName}
-                onChange={(val) => setDoctorName(val)}
-              />
-            </div>
-
-            {/* Consumption Cart Table */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-              <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
-                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="p-2.5">Item & Batch</th>
-                    <th className="p-2.5 w-16 text-center">Qty</th>
-                    {isItemWiseVat && <th className="p-2.5 w-16 text-center">VAT %</th>}
-                    <th className="p-2.5 w-24 text-right">Price ({currencyCode})</th>
-                    <th className="p-2.5 w-8 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  {cart.map((item, index) => {
-                    const itemGross = item.selling_price * item.qty;
-                    const itemTax = isItemWiseVat ? (itemGross * (parseFloat(item.vat_percent || 0) / 100)) : 0;
-                    const itemTotal = itemGross + itemTax;
-
-                    return (
-                      <tr key={index} className="bg-white dark:bg-slate-900">
-                        <td className="p-2.5">
-                          <p className="font-bold text-slate-900 dark:text-slate-100 text-xs">{item.item_name}</p>
-                          <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">{item.batch_code}</p>
-                        </td>
-
-                        <td className="p-1 text-center">
-                          <input
-                            type="number"
-                            min="1"
-                            max={item.max_qty}
-                            value={item.qty}
-                            onChange={(e) => updateCartItem(index, 'qty', parseInt(e.target.value) || 1)}
-                            className="w-12 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-1 text-xs text-center font-bold"
-                          />
-                        </td>
-
-                        {isItemWiseVat && (
-                          <td className="p-1 text-center">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={item.vat_percent}
-                              onChange={(e) => updateCartItem(index, 'vat_percent', e.target.value)}
-                              className="w-12 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-1 text-xs text-center font-bold text-brand-blue"
-                            />
-                          </td>
-                        )}
-
-                        <td className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-100">
-                          {formatCurrency(itemTotal, currencyCode, decimalPlaces)}
-                        </td>
-
-                        <td className="p-1 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeFromCart(index)}
-                            className="text-slate-400 hover:text-rose-600 p-1"
-                            title="Remove from list"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {cart.length === 0 && (
-                    <tr>
-                      <td colSpan={isItemWiseVat ? 5 : 4} className="p-6 text-center text-slate-400 text-xs">
-                        Consumption list is empty. Click available stock items on the left to add items.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Total Summary */}
-            <div className="space-y-1.5 pt-2 text-xs border-t border-slate-200 dark:border-slate-800">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Gross Subtotal:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(grossTotal, currencyCode, decimalPlaces)}</span>
+            {/* Patient & Doctor Selection */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Patient / Customer *</label>
+                <SearchableSelect
+                  placeholder="Search Patient..."
+                  options={customers.map(c => ({ value: c.id, label: `${c.name} (${c.phone || 'Walk-in'})`, sublabel: `Code: ${c.code || c.id}` }))}
+                  value={selectedCustomerId}
+                  onChange={(val) => setSelectedCustomerId(val)}
+                />
               </div>
 
-              {!isItemWiseVat && (
-                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                  <span className="flex items-center gap-1 font-bold"><Tag className="w-3 h-3 text-brand-orange" /> Discount ({currencyCode}):</span>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Attending Clinic Doctor *</label>
+                <SearchableSelect
+                  options={doctorOptions}
+                  value={doctorName}
+                  onChange={(val) => setDoctorName(val)}
+                />
+              </div>
+            </div>
+
+            {/* Cart Items Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[260px] overflow-y-auto bg-slate-50/50 dark:bg-slate-950/50">
+              {cart.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 dark:text-slate-500">
+                  Consumption list is empty. Click items from the available stock grid on the left.
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="p-2.5">Item & Batch</th>
+                      <th className="p-2.5 w-20">Qty</th>
+                      <th className="p-2.5 text-right">Price</th>
+                      <th className="p-2.5 text-right">Subtotal</th>
+                      <th className="p-2.5 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {cart.map((item, idx) => {
+                      const itemSubtotal = parseFloat(item.selling_price || 0) * parseInt(item.qty || 0);
+                      return (
+                        <tr key={idx} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40">
+                          <td className="p-2.5">
+                            <p className="font-bold text-slate-900 dark:text-slate-100 leading-tight">{item.item_name}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Batch: {item.batch_code}</p>
+                          </td>
+                          <td className="p-2.5">
+                            <input
+                              type="number"
+                              min="1"
+                              max={item.max_qty}
+                              value={item.qty}
+                              onChange={(e) => updateCartItem(idx, 'qty', parseInt(e.target.value || 1))}
+                              className="w-16 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-slate-600 dark:text-slate-400">
+                            {formatCurrency(item.selling_price, currencyCode, decimalPlaces)}
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                            {formatCurrency(itemSubtotal, currencyCode, decimalPlaces)}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => removeFromCart(idx)}
+                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Financial Summary */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Gross Items Total:</span>
+                <span className="font-mono font-semibold">{formatCurrency(grossTotal, currencyCode, decimalPlaces)}</span>
+              </div>
+
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>Discount Deduction:</span>
+                <div className="flex items-center gap-1 w-28">
+                  <span className="font-mono text-[11px] text-slate-400">{currencyCode}</span>
                   <input
                     type="number"
                     step="0.001"
                     min="0"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(e.target.value)}
-                    className="w-20 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2 py-0.5 text-xs text-right font-bold"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-0.5 text-xs text-right font-mono font-bold"
                   />
                 </div>
-              )}
+              </div>
 
-              {!isNoVat ? (
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>VAT Tax ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}):</span>
-                  <span className="font-bold text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</span>
-                </div>
-              ) : (
-                <div className="flex justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
-                  <span>VAT Tax Policy:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">NO VAT (0%)</span>
+              {!isNoVat && (
+                <div className="flex justify-between text-purple-700 dark:text-purple-300 pt-1 border-t border-slate-200 dark:border-slate-800">
+                  <span>VAT ({isItemWiseVat ? 'Item-wise' : `${defaultVatRate}%`}):</span>
+                  <span className="font-mono font-bold">+{formatCurrency(totalVat, currencyCode, decimalPlaces)}</span>
                 </div>
               )}
 
-              <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800">
-                <span className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-xs">Grand Total Payable:</span>
-                <span className="text-xl font-black text-brand-orange font-heading">{formatCurrency(grandTotal, currencyCode, decimalPlaces)}</span>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting || cart.length === 0}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-brand-orange to-amber-600 text-white font-bold text-xs shadow-md glow-orange hover:brightness-110 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" /> Generate Invoice & Dispense Stock
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center gap-3 text-brand-orange">
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/80 rounded-2xl border border-amber-200 dark:border-amber-800">
-                <HelpCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">Confirm OPD Dispensing & Sale</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Are you sure you want to generate this sales invoice?</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Patient / Customer:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedCustomerObj?.name || 'Walk-in Patient'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Attending Doctor:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{doctorName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Consumption Line Items:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{cart.length} Item(s)</span>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
-                <span className="text-slate-400 font-semibold">Grand Total Amount:</span>
-                <span className="font-black text-brand-orange text-sm">
+              <div className="flex justify-between items-center text-base font-extrabold text-slate-900 dark:text-slate-100 pt-2 border-t border-slate-300 dark:border-slate-700">
+                <span>Grand Total:</span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 text-lg">
                   {formatCurrency(grandTotal, currencyCode, decimalPlaces)}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={executeCheckout}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-brand-orange to-amber-600 text-white font-bold text-xs shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Yes, Generate & Dispense
-              </button>
-            </div>
-          </div>
+            {/* Checkout Button */}
+            <button
+              type="submit"
+              disabled={submitting || cart.length === 0}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-lg glow-green hover:opacity-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              {submitting ? 'Posting OPD Invoice...' : `Dispense Patient Sales (${formatCurrency(grandTotal, currencyCode, decimalPlaces)})`}
+            </button>
+          </form>
         </div>
-      )}
+      </div>
 
-      {/* Detail Breakdown Modal for Sales Invoice */}
-      {selectedInvoiceDetail && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-4xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150 my-8">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/80 text-brand-orange rounded-2xl border border-amber-200 dark:border-amber-800">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">
-                      Sales Invoice: {selectedInvoiceDetail.sales_invoice_no || selectedInvoiceDetail.invoice_no}
-                    </h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-300 dark:border-emerald-500/40">
-                      DISPENSED
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Complete items breakdown & patient dispensing details</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setSelectedInvoiceDetail(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Invoice Header Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
-              <div>
-                <span className="text-slate-400 block text-[11px]">Patient / Customer</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 mt-0.5">
-                  <User className="w-3.5 h-3.5 text-brand-orange" />
-                  {selectedInvoiceDetail.customer_name}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block text-[11px]">Attending Doctor</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 mt-0.5">
-                  <Stethoscope className="w-3.5 h-3.5 text-brand-blue" />
-                  {selectedInvoiceDetail.doctor_name || 'OPD Doctor'}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block text-[11px]">Clinic Outlet</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 mt-0.5 block">
-                  {selectedInvoiceDetail.clinic_name || 'City Wellness Clinic'}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block text-[11px]">Dispensed Date</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 mt-0.5 font-mono">
-                  <Calendar className="w-3.5 h-3.5 text-purple-500" />
-                  {formatDate(selectedInvoiceDetail.created_at)}
-                </span>
-              </div>
-            </div>
-
-            {/* Line Items Table */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                Dispensed Line Items ({selectedInvoiceDetail.items?.length || 0})
-              </h4>
-              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-                <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
-                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
-                    <tr>
-                      <th className="p-3">#</th>
-                      <th className="p-3">Item Name & Code</th>
-                      <th className="p-3">Batch Code</th>
-                      <th className="p-3">Expiry Date</th>
-                      <th className="p-3 text-center">Qty Dispensed</th>
-                      <th className="p-3 text-right">Unit Price ({currencyCode})</th>
-                      <th className="p-3 text-right">Line Subtotal ({currencyCode})</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {(selectedInvoiceDetail.items || []).map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
-                        <td className="p-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                        <td className="p-3">
-                          <p className="font-bold text-slate-900 dark:text-slate-100">{item.item_name}</p>
-                          <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Code: {item.item_code}</p>
-                        </td>
-                        <td className="p-3 font-mono font-bold text-brand-orange">{item.batch_code}</td>
-                        <td className="p-3 font-mono text-slate-600 dark:text-slate-400">{formatDate(item.expiry_date)}</td>
-                        <td className="p-3 text-center font-extrabold text-slate-900 dark:text-slate-100">{item.qty}</td>
-                        <td className="p-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
-                          {formatCurrency(item.unit_price, currencyCode, decimalPlaces)}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                          {formatCurrency(item.subtotal, currencyCode, decimalPlaces)}
-                        </td>
-                      </tr>
-                    ))}
-                    {(!selectedInvoiceDetail.items || selectedInvoiceDetail.items.length === 0) && (
-                      <tr>
-                        <td colSpan={7} className="p-6 text-center text-slate-400 text-xs">
-                          No line item records found for this sales invoice.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Total Footer Summary */}
-            <div className="flex justify-between items-center p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs">
-              <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Total Invoice Net Amount Payable:
-              </span>
-              <span className="text-xl font-black text-brand-orange font-heading">
-                {formatCurrency(selectedInvoiceDetail.net_amount || selectedInvoiceDetail.total_amount, currencyCode, decimalPlaces)}
-              </span>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setSelectedInvoiceDetail(null)}
-                className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-              >
-                Close Breakdown
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sales Invoices History */}
+      {/* Sales History Directory */}
       <DataTable
-        title="Recent OPD Patient Sales Invoices History"
-        subtitle={`Search and sort recorded OPD sales invoices in ${currencyCode} (Click invoice # to view items)`}
-        columns={invoiceColumns}
+        title="Dispensed Patient OPD Invoices Ledger"
+        subtitle={`Audit log of all OPD sales invoices dispensed at ${selectedClinicObj?.name || 'Clinic Outlet'}`}
+        columns={salesColumns}
         data={salesInvoices}
         searchable={true}
-        defaultPageSize={5}
+        defaultPageSize={10}
       />
     </div>
   );
