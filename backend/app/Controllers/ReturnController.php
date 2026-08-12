@@ -47,10 +47,11 @@ class ReturnController extends Controller
         foreach ($batches as $b) {
             $batchId = (int)$b['batch_id'];
 
-            // Calculate total quantity received by this location for this batch
-            $stmtRec = $pdo->prepare("SELECT COALESCE(SUM(quantity), 0) AS total_received 
-                                     FROM `inventory_movements` 
-                                     WHERE destination_location_id = ? AND batch_id = ? AND movement_type IN ('PURCHASE_RECEIPT', 'BRANCH_TRANSFER', 'CLINIC_TRANSFER')");
+            // Calculate total quantity received by this location for this batch from stock_transfer_items
+            $stmtRec = $pdo->prepare("SELECT COALESCE(SUM(sti.quantity), 0) AS total_received 
+                                     FROM `stock_transfer_items` sti
+                                     JOIN `stock_transfers` st ON sti.transfer_id = st.id
+                                     WHERE st.to_location_id = ? AND sti.batch_id = ?");
             $stmtRec->execute([$locId, $batchId]);
             $recRow = $stmtRec->fetch(PDO::FETCH_ASSOC);
             $totalReceived = (int)($recRow['total_received'] ?? 0);
@@ -76,11 +77,11 @@ class ReturnController extends Controller
             $b['id'] = UrlSecurity::encrypt($batchId);
             $b['raw_item_id'] = (int)$b['item_id'];
             $b['item_id'] = UrlSecurity::encrypt($b['raw_item_id']);
-            $b['total_received'] = $totalReceived;
+            $b['total_received'] = $totalReceived > 0 ? $totalReceived : $availQty;
             $b['total_returned'] = $totalReturned;
-            $b['max_returnable_qty'] = $maxReturnable;
+            $b['max_returnable_qty'] = $maxReturnable > 0 ? $maxReturnable : $availQty;
 
-            if ($maxReturnable > 0) {
+            if ($b['max_returnable_qty'] > 0) {
                 $result[] = $b;
             }
         }
@@ -191,16 +192,18 @@ class ReturnController extends Controller
                 $returnItemId = (int)$pdo->lastInsertId();
 
                 // Deduct stock from source location
+                InventoryLedgerService::debitStock($fromLoc, $rawBatchId, $qty);
                 InventoryLedgerService::recordMovement(
+                    'STOCK_RETURN_OUT',
+                    $returnRef,
                     $rawItemId,
                     $rawBatchId,
-                    'STOCK_RETURN_OUT',
-                    -$qty,
                     $fromLoc,
                     $toLoc,
-                    $user['user_id'],
-                    $returnRef,
-                    "Stock Return Created ({$returnType}) - Placed in Return Wallet"
+                    $qty,
+                    $unitRate,
+                    $unitRate,
+                    $user['user_id']
                 );
 
                 // Insert into Return Wallet of destination location
@@ -329,8 +332,7 @@ class ReturnController extends Controller
                 $rawBatchId = (int)$item['batch_id'];
                 $qty = (int)$item['quantity'];
 
-                // Check if target location already has a batch record for this item/batch_code or create/credit it
-                $stmtBatch = $pdo->prepare("SELECT batch_code, expiry_date, unit_cost, selling_price FROM `item_batches` WHERE id = ?");
+                $stmtBatch = $pdo->prepare("SELECT batch_code, expiry_date, purchase_price, selling_price FROM `item_batches` WHERE id = ?");
                 $stmtBatch->execute([$rawBatchId]);
                 $origBatch = $stmtBatch->fetch(PDO::FETCH_ASSOC);
 
@@ -338,42 +340,19 @@ class ReturnController extends Controller
                     throw new \Exception("Original batch record ID {$rawBatchId} missing.");
                 }
 
-                // Check if target location has this batch
-                $stmtDestBatch = $pdo->prepare("SELECT id FROM `item_batches` WHERE location_id = ? AND batch_code = ? AND item_id = ?");
-                $stmtDestBatch->execute([$toLocId, $origBatch['batch_code'], $rawItemId]);
-                $destBatchRow = $stmtDestBatch->fetch(PDO::FETCH_ASSOC);
-
-                if ($destBatchRow) {
-                    $targetBatchId = (int)$destBatchRow['id'];
-                } else {
-                    // Create new batch at target location
-                    $stmtInsBatch = $pdo->prepare("INSERT INTO `item_batches` 
-                        (`item_id`, `location_id`, `batch_code`, `expiry_date`, `quantity_received`, `quantity_available`, `unit_cost`, `selling_price`, `status`, `created_at`) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', NOW())");
-                    $stmtInsBatch->execute([
-                        $rawItemId,
-                        $toLocId,
-                        $origBatch['batch_code'],
-                        $origBatch['expiry_date'],
-                        $qty,
-                        0,
-                        $origBatch['unit_cost'],
-                        $origBatch['selling_price']
-                    ]);
-                    $targetBatchId = (int)$pdo->lastInsertId();
-                }
-
-                // Credit stock to destination location's available stock
+                // Credit stock to destination location's available stock using InventoryLedgerService
+                InventoryLedgerService::creditStock($toLocId, $rawBatchId, $qty);
                 InventoryLedgerService::recordMovement(
-                    $rawItemId,
-                    $targetBatchId,
                     'STOCK_RETURN_IN',
-                    $qty,
+                    $returnRow['return_reference'],
+                    $rawItemId,
+                    $rawBatchId,
                     $fromLocId,
                     $toLocId,
-                    $user['user_id'],
-                    $returnRow['return_reference'],
-                    "Accepted Stock Return from Return Wallet"
+                    $qty,
+                    (float)$origBatch['purchase_price'],
+                    (float)$origBatch['selling_price'],
+                    $user['user_id']
                 );
 
                 // Update return item status
@@ -620,17 +599,19 @@ class ReturnController extends Controller
             $rawBatchId = (int)$rejRow['batch_id'];
             $qty = (int)$rejRow['quantity'];
 
-            // Credit stock back to Clinic Available Stock
+            // Credit stock back to Clinic Available Stock using InventoryLedgerService
+            InventoryLedgerService::creditStock($clinicId, $rawBatchId, $qty);
             InventoryLedgerService::recordMovement(
+                'STOCK_RESTORE_IN',
+                "REJ-RESTORE-{$rawRejId}",
                 $rawItemId,
                 $rawBatchId,
-                'STOCK_RESTORE_IN',
-                $qty,
                 null,
                 $clinicId,
-                $user['user_id'],
-                "REJ-RESTORE-{$rawRejId}",
-                "Restored from Clinic Return Reject Wallet back to Clinic Stock"
+                $qty,
+                0,
+                0,
+                $user['user_id']
             );
 
             // Update rejection record status
