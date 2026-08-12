@@ -29,11 +29,11 @@ export default function Header({ activeTab, setActiveTab }) {
   };
 
   return (
-    <header className="h-16 border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between transition-colors duration-200">
+    <header className="h-20 border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between transition-colors duration-200">
       {/* Brand & Logo */}
-      <div className="flex items-center space-x-3">
-        <div className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center">
-          <img src="/logo.png" alt="Organization Logo" className="h-8 w-auto object-contain" />
+      <div className="flex items-center space-x-3.5">
+        <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center">
+          <img src="/logo.png" alt="Organization Logo" className="h-12 md:h-14 w-auto object-contain max-h-14" />
         </div>
         <div>
           <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading leading-tight flex items-center gap-2">

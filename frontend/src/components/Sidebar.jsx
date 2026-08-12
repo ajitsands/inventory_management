@@ -32,7 +32,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   const filteredNav = navItems.filter(item => item.roles.includes(role));
 
   return (
-    <aside className="w-64 bg-white dark:bg-slate-900/90 border-r border-slate-200 dark:border-slate-800/80 flex flex-col justify-between p-4 min-h-[calc(100vh-4rem)] transition-colors duration-200">
+    <aside className="w-64 bg-white dark:bg-slate-900/90 border-r border-slate-200 dark:border-slate-800/80 flex flex-col justify-between p-4 min-h-[calc(100vh-5rem)] transition-colors duration-200">
       <div className="space-y-1">
         <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 font-heading">
           Navigation Menu
