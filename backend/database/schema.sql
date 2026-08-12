@@ -250,7 +250,7 @@ CREATE TABLE `sales_invoice_items` (
 -- 14. Stock Movements Ledger Table (Immutable Item Movement Trajectory)
 CREATE TABLE `stock_movements_ledger` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `transaction_type` ENUM('PURCHASE', 'BRANCH_TRANSFER', 'CLINIC_TRANSFER', 'CUSTOMER_SALE', 'ADJUSTMENT') NOT NULL,
+  `transaction_type` ENUM('PURCHASE', 'BRANCH_TRANSFER', 'CLINIC_TRANSFER', 'CUSTOMER_SALE', 'STOCK_RETURN', 'ADJUSTMENT') NOT NULL,
   `reference_no` VARCHAR(80) NOT NULL,
   `item_id` INT NOT NULL,
   `batch_id` INT NOT NULL,
