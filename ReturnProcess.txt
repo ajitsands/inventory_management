@@ -1,0 +1,962 @@
+Yes. Based on your actual business flow, the Stock Return logic should be redesigned as a controlled, multi-stage Return Wallet workflow, rather than directly adding returned quantities back into the receiving location's stock.
+
+For your Antigravity prompt, I recommend making the requirements very explicit so it understands the difference between Return Request → Return Wallet → Accept/Reject → Stock/Credit Note/Damaged Stock.
+
+Here is a detailed prompt you can use:
+
+Stock Return Workflow – Complete Logic Re-Design
+
+#1. Objective
+
+The existing Stock Return logic must be completely redesigned because the current logic can create incorrect stock entries and inaccurate inventory balances in practical scenarios.
+
+The new Stock Return module must support returns through the following hierarchy:
+
+Main Store → Branch → Clinic
+
+Stock can move from Main Store to Branch, and from Branch to Clinic.
+
+A return can happen:
+
+1. Clinic → Branch
+2. Branch → Main Store
+
+Returned stock must never be automatically added to the receiving location's available stock.
+
+Every return must first enter a Return Wallet and must be explicitly accepted or rejected by the receiving stock authority.
+
+---
+
+2. Stock Movement Example
+
+Assume:
+
+##Main Store
+
+Main Store generates an invoice/stock transfer to:
+
+Branch 1
+
+Product:
+
+* Product Code: P001
+* Batch Code: BATCH001
+* Quantity: 10
+
+The 10 units are transferred to Branch 1.
+
+Branch 1 stock:
+
+P001 / BATCH001 = 10
+
+---
+
+3. Branch to Clinic Transfer
+
+Branch 1 can transfer stock to any clinic.
+
+Example:
+
+Branch 1 transfers:
+
+* Product: P001
+* Batch: BATCH001
+* Quantity: 5
+* From: Branch 1
+* To: Clinic 1
+
+After the transfer:
+
+##Branch 1
+
+Available quantity:
+
+10 - 5 = 5
+
+##Clinic 1
+
+Received quantity:
+
+5
+
+The system must maintain the complete stock movement history against the original Batch Code.
+
+---
+
+4. Clinic Return to Branch
+
+Clinic 1 may return one or more units to Branch 1.
+
+Example:
+
+Clinic 1 received:
+
+5 units
+
+Clinic 1 can return:
+
+* 1 unit
+* 2 units
+* 3 units
+* 4 units
+* 5 units
+
+But Clinic 1 must never be allowed to return more than the quantity actually received from Branch 1 for that particular batch.
+
+Example:
+
+Received:
+
+5
+
+Already returned:
+
+2
+
+Remaining returnable quantity:
+
+3
+
+Therefore, the system must reject a return request for more than 3 units.
+
+---
+
+5. Clinic Return Must Enter Branch Return Wallet
+
+When Clinic 1 creates a return:
+
+Example:
+
+Clinic 1 returns:
+
+2 × P001 / BATCH001
+
+The system must NOT immediately add these 2 units to Branch 1 available stock.
+
+Instead:
+
+##Branch 1 Return Wallet
+
+P001 / BATCH001
+
+Quantity: 2
+
+Status:
+
+Pending Acceptance
+
+The stock must remain outside Branch 1's available/usable stock.
+
+The transaction must be visible to Branch 1's authorized stock user.
+
+---
+
+6. Branch User – Accept or Reject Return
+
+Branch 1 stock user can view pending returns in:
+
+Stock Return Wallet → Pending Returns
+
+The user must have two options:
+
+##ACCEPT
+
+If the Branch accepts the returned item:
+
+The quantity must be transferred from:
+
+Branch Return Wallet → Branch Available Stock
+
+Example:
+
+Return Wallet:
+
+2
+
+After Accept:
+
+Branch Stock:
+
++2
+
+Return Wallet:
+
+0
+
+The accepted quantity becomes available for normal stock transactions.
+
+The system must maintain the complete audit trail.
+
+---
+
+7. Branch User – Reject Return
+
+If Branch 1 rejects the return:
+
+The item must NOT be added to Branch stock.
+
+Instead, it must be moved to:
+
+Clinic 1 Return Reject Wallet
+
+Example:
+
+Clinic 1 returned:
+
+2
+
+Branch rejected:
+
+2
+
+The 2 units must remain in:
+
+Clinic 1 → Return Reject Wallet
+
+They must NOT become available Clinic Stock.
+
+---
+
+8. Rejected Return Wallet at Clinic
+
+The rejected items must be separately maintained in the Clinic's:
+
+Return Reject Wallet
+
+These items are physically associated with the Clinic but are NOT normal available stock.
+
+Example:
+
+Clinic 1:
+
+Normal Stock:
+
+P001 = 0
+
+Return Reject Wallet:
+
+P001 / BATCH001 = 2
+
+These 2 units must NOT be included in:
+
+* Available Stock
+* OPD Stock
+* Sales Stock
+* Dispensing Stock
+* Consumption Stock
+* Any normal stock transaction
+
+The system must prevent OPD or other stock transactions against rejected-return quantities.
+
+---
+
+9. Clinic Handling of Rejected Items
+
+The Clinic can decide what to do with rejected-return items.
+
+The system should provide options such as:
+
+##Option 1 – Add Back to Clinic Stock
+
+If authorized, the Clinic can accept the rejected item back into its normal stock.
+
+Then:
+
+Return Reject Wallet → Clinic Available Stock
+
+##Option 2 – Keep in Return Reject Wallet
+
+The Clinic can keep the item in the Return Reject Wallet.
+
+In this case:
+
+No stock transaction is allowed against the item.
+
+The item remains isolated until a valid stock action is performed.
+
+---
+
+10. Branch Return to Main Store
+
+After Branch 1 accepts a return from Clinic 1 and the item becomes part of Branch 1 stock, Branch 1 may subsequently return the item to the Main Store.
+
+Example:
+
+Branch 1 has:
+
+P001 / BATCH001 = 2 units
+
+Branch 1 creates a return to:
+
+Main Store
+
+The system must NOT immediately add these units to Main Store stock.
+
+Instead, the returned quantity must enter:
+
+Main Store Return Wallet
+
+Status:
+
+Pending Acceptance
+
+---
+
+11. Main Store Return Wallet
+
+Main Store users must have a separate:
+
+Return Wallet
+
+The Main Store user can see:
+
+* Returning Branch
+* Branch Invoice/Transfer Reference
+* Product Code
+* Product Name
+* Batch Code
+* Quantity
+* Return Date
+* Reason
+* Return Reference
+* Original Invoice/Transfer
+* User who initiated return
+* Current Status
+
+Example:
+
+Branch:
+
+Branch 1
+
+Product:
+
+P001
+
+Batch:
+
+BATCH001
+
+Quantity:
+
+2
+
+Status:
+
+Pending Main Store Acceptance
+
+---
+
+12. Main Store – Accept Return
+
+If Main Store accepts the returned quantity:
+
+The system must perform:
+
+Main Store Return Wallet → Main Store Available Stock
+
+Example:
+
+Return Wallet:
+
+2
+
+After acceptance:
+
+Main Store Stock:
+
++2
+
+The transaction must be recorded against the correct Product and Batch Code.
+
+---
+
+13. Main Store – Reject Return
+
+If Main Store rejects the return:
+
+The returned quantity must NOT be added to Main Store stock.
+
+Instead, the system must classify the rejected quantity as:
+
+Damaged / Rejected Return Stock
+
+The system must maintain this separately from normal inventory.
+
+Example:
+
+Main Store Return:
+
+2
+
+Rejected:
+
+2
+
+Result:
+
+Damaged/Rejected Stock = 2
+
+Available Main Store Stock:
+
+0 additional quantity
+
+---
+
+14. Credit Note Generation
+
+When Main Store rejects a Branch return, the system must generate a:
+
+Credit Note
+
+against the relevant Branch.
+
+The Credit Note must be linked to the original invoice/stock transfer transaction.
+
+Example:
+
+Original Branch Invoice:
+
+INV-1001
+
+Product:
+
+P001
+
+Original quantity:
+
+10
+
+Returned quantity:
+
+2
+
+Main Store rejects:
+
+2
+
+System generates:
+
+Credit Note against Branch 1
+
+The corresponding outstanding amount of the original invoice must be adjusted according to the rejected/credited quantity.
+
+The system must NOT create a duplicate financial transaction.
+
+The Credit Note must reference:
+
+* Original Invoice Number
+* Branch
+* Product
+* Batch Code
+* Returned Quantity
+* Accepted/Rejected Quantity
+* Unit Rate
+* Tax/VAT if applicable
+* Credit Amount
+* Return Reference
+* Approval User
+* Date/Time
+
+---
+
+15. Important Stock Rules
+
+The system must enforce the following rules.
+
+##Rule 1 – No Direct Stock Addition
+
+A returned item must never directly increase stock.
+
+All returns must first enter a Return Wallet.
+
+---
+
+##Rule 2 – Batch-Level Validation
+
+Return quantity must always be validated against the actual quantity received for that:
+
+Product + Batch Code + Source Transaction
+
+The system must prevent returning more than the eligible quantity.
+
+---
+
+##Rule 3 – Partial Returns
+
+Partial returns must be supported.
+
+Example:
+
+Received:
+
+5
+
+Returned:
+
+2
+
+Remaining eligible:
+
+3
+
+The system must allow another return of up to 3.
+
+---
+
+##Rule 4 – No Duplicate Return
+
+The same physical quantity must not be returned twice.
+
+The system must track:
+
+Received Quantity - Already Returned Quantity = Remaining Returnable Quantity
+
+---
+
+##Rule 5 – Pending Return Is Not Stock
+
+A quantity inside Return Wallet must NOT be counted as available stock.
+
+---
+
+##Rule 6 – Rejected Return Is Not Stock
+
+A rejected return must remain outside normal stock until explicitly accepted through the appropriate workflow.
+
+---
+
+##Rule 7 – OPD Restriction
+
+Items in:
+
+Return Wallet
+
+or
+
+Return Reject Wallet
+
+must NOT be available for OPD transactions or any normal stock consumption transaction.
+
+---
+
+##Rule 8 – Complete Audit Trail
+
+Every return must maintain:
+
+* Return ID
+* Original Transfer/Invoice ID
+* From Location
+* To Location
+* Product
+* Batch Code
+* Quantity
+* Return Reason
+* Return Date
+* Created By
+* Accepted/Rejected By
+* Acceptance/Rejection Date
+* Current Status
+* Previous Status
+* Stock Transaction Reference
+* Credit Note Reference where applicable
+
+---
+
+16. Return Status Flow
+
+Implement the following statuses.
+
+##Clinic → Branch
+
+RETURN_REQUESTED
+
+↓
+
+BRANCH_RETURN_WALLET
+
+↓
+
+Either:
+
+ACCEPTED
+
+or
+
+REJECTED
+
+If Accepted:
+
+BRANCH STOCK
+
+If Rejected:
+
+CLINIC RETURN REJECT WALLET
+
+---
+
+##Branch → Main Store
+
+RETURN_REQUESTED
+
+↓
+
+MAIN_STORE_RETURN_WALLET
+
+↓
+
+Either:
+
+ACCEPTED
+
+or
+
+REJECTED
+
+If Accepted:
+
+MAIN STORE STOCK
+
+If Rejected:
+
+DAMAGED / REJECTED STOCK
+
+*
+
+CREDIT NOTE TO BRANCH
+
+---
+
+17. Recommended Database Design
+
+Do not implement this only by directly updating stock quantity fields.
+
+Use a proper transaction-based design.
+
+Create/modify tables logically similar to:
+
+##stock_return
+
+* return_id
+* return_reference
+* from_location_id
+* to_location_id
+* original_transaction_id
+* original_invoice_id
+* return_date
+* status
+* created_by
+* created_at
+* accepted_by
+* accepted_at
+* rejection_reason
+
+##stock_return_items
+
+* return_item_id
+* return_id
+* product_id
+* batch_code
+* quantity
+* unit_rate
+* tax
+* total_amount
+
+##stock_return_wallet
+
+* wallet_id
+* return_id
+* location_id
+* product_id
+* batch_code
+* quantity
+* wallet_type
+* status
+
+##stock_return_rejection
+
+* rejection_id
+* return_id
+* location_id
+* product_id
+* batch_code
+* quantity
+* rejection_reason
+* status
+
+##stock_transaction
+
+All actual stock movements should be recorded here.
+
+Do not rely only on the current stock quantity.
+
+---
+
+18. Stock Calculation Principle
+
+The system must maintain a transaction history.
+
+For every Product + Batch + Location:
+
+Opening Stock
+
+*
+
+Accepted Transfers In
+
+*
+
+Accepted Returns In
+
+*
+
+Transfers Out
+
+*
+
+Accepted Returns Out
+
+*
+
+Sales/Consumption
+
+=
+
+Available Stock
+
+Return Wallet quantities must NOT be included in Available Stock.
+
+Rejected Return Wallet quantities must NOT be included in Available Stock.
+
+Damaged Stock must NOT be included in Available Stock.
+
+---
+
+19. UI Requirements
+
+Create separate screens/sections:
+
+##A. Create Stock Return
+
+Used by Clinic/Branch to initiate a return.
+
+##B. Pending Return Wallet
+
+Used by the receiving location to review pending returns.
+
+##C. Accepted Returns
+
+Display completed accepted returns.
+
+##D. Rejected Returns
+
+Display rejected returns.
+
+##E. Return Reject Wallet
+
+Display rejected Clinic returns.
+
+##F. Damaged/Rejected Stock
+
+Display Main Store rejected returns.
+
+##G. Return History
+
+Provide complete return history with filtering by:
+
+* Date
+* Location
+* Product
+* Batch
+* Invoice
+* Return Reference
+* Status
+* User
+
+---
+
+20. Approval Controls
+
+The system must ensure that the user who creates a return cannot automatically approve the same return unless the configured business rule explicitly permits it.
+
+Receiving-location users should have separate permissions for:
+
+* View Return
+* Accept Return
+* Reject Return
+* Move Rejected Item to Stock
+* Return Stock to Higher Location
+* Generate/Approve Credit Note
+
+---
+
+21. Critical Requirement
+
+The most important requirement is:
+
+NEVER update the available stock immediately when a return is created.
+
+The correct flow is:
+
+Create Return
+
+↓
+
+Validate Original Received Quantity
+
+↓
+
+Create Return Transaction
+
+↓
+
+Put Quantity into Receiving Location's Return Wallet
+
+↓
+
+Receiving User Reviews
+
+↓
+
+##ACCEPT
+
+→ Move to Available Stock
+
+##REJECT
+
+→ Move to appropriate Reject/Damaged Wallet
+
+This approach must be followed for both:
+
+Clinic → Branch
+
+and
+
+Branch → Main Store
+
+---
+
+22. Expected Final Workflow
+
+#Clinic → Branch
+
+Clinic Stock
+
+↓
+
+Create Return
+
+↓
+
+Branch Return Wallet
+
+↓
+
+Branch Reviews
+
+↓
+
+ACCEPT
+
+→ Branch Stock
+
+OR
+
+REJECT
+
+→ Clinic Return Reject Wallet
+
+↓
+
+Clinic can either:
+
+Move to Clinic Stock
+
+OR
+
+Keep in Reject Wallet
+
+---
+
+#Branch → Main Store
+
+Branch Stock
+
+↓
+
+Create Return
+
+↓
+
+Main Store Return Wallet
+
+↓
+
+Main Store Reviews
+
+↓
+
+ACCEPT
+
+→ Main Store Stock
+
+OR
+
+REJECT
+
+→ Damaged/Rejected Stock
+
+*
+
+Generate Credit Note
+
+*
+
+Adjust Branch Outstanding
+
+---
+
+23. Development Requirement
+
+Before implementing the new logic, review the existing Stock Return module and identify all existing code, database tables, stock calculations, invoice relationships, batch validations, and UI components that depend on the old return logic.
+
+Do not simply modify one page.
+
+The entire return workflow must be redesigned so that:
+
+Inventory Quantity, Return Wallet Quantity, Rejected Quantity, Damaged Quantity, Invoice Quantity, and Financial Credit Note Quantity remain synchronized and auditable.
+
+The implementation must prevent:
+
+* Negative stock
+* Duplicate returns
+* Over-returning
+* Incorrect batch returns
+* Automatic stock addition
+* Duplicate credit notes
+* Incorrect outstanding adjustment
+* OPD usage of pending/rejected return items
+* Duplicate stock transactions
+
+The final implementation must provide a complete end-to-end transaction trail from the original Main Store invoice through Branch transfer, Clinic transfer, Clinic return, Branch acceptance/rejection, Branch return to Main Store, Main Store acceptance/rejection, and Credit Note generation.
+
+
+Return Reason Dropdown
+Damaged Item
+Expired Item
+Near Expiry
+Wrong Item Supplied
+Wrong Quantity Supplied
+Excess Quantity
+Item Not Required
+Customer Return
+Clinic Return
+Batch Issue
+Quality Issue
+Packaging Damage
+Product Defective
+Incorrect Batch
+Incorrect Product
+Stock Transfer Error
+Duplicate Transfer
+Other

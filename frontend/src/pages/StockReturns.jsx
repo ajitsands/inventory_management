@@ -7,102 +7,159 @@ import { formatDate } from '../utils/date';
 import { formatCurrency } from '../utils/currency';
 import {
   RotateCcw,
+  Wallet,
+  AlertTriangle,
+  Archive,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Search,
   Plus,
   Trash2,
-  CheckCircle2,
-  AlertCircle,
-  Calculator,
-  FileText,
-  Paperclip,
-  UploadCloud,
-  FileCheck,
-  ExternalLink,
-  Building,
+  Check,
+  RefreshCw,
+  Eye,
   Building2,
-  ShoppingCart,
-  Layers,
+  ShieldCheck,
+  ArrowRightLeft,
   X,
-  HelpCircle
+  FileCheck,
+  ArrowUpRight
 } from 'lucide-react';
+
+const RETURN_REASON_OPTIONS = [
+  { value: 'Damaged Item', label: 'Damaged Item' },
+  { value: 'Expired Item', label: 'Expired Item' },
+  { value: 'Near Expiry', label: 'Near Expiry' },
+  { value: 'Wrong Item Supplied', label: 'Wrong Item Supplied' },
+  { value: 'Wrong Quantity Supplied', label: 'Wrong Quantity Supplied' },
+  { value: 'Excess Quantity', label: 'Excess Quantity' },
+  { value: 'Item Not Required', label: 'Item Not Required' },
+  { value: 'Customer Return', label: 'Customer Return' },
+  { value: 'Clinic Return', label: 'Clinic Return' },
+  { value: 'Batch Issue', label: 'Batch Issue' },
+  { value: 'Quality Issue', label: 'Quality Issue' },
+  { value: 'Packaging Damage', label: 'Packaging Damage' },
+  { value: 'Product Defective', label: 'Product Defective' },
+  { value: 'Incorrect Batch', label: 'Incorrect Batch' },
+  { value: 'Incorrect Product', label: 'Incorrect Product' },
+  { value: 'Stock Transfer Error', label: 'Stock Transfer Error' },
+  { value: 'Duplicate Transfer', label: 'Duplicate Transfer' },
+  { value: 'Other', label: 'Other' }
+];
 
 export default function StockReturns() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
-  const [returnType, setReturnType] = useState('BRANCH_TO_MAIN'); // CLINIC_TO_BRANCH, BRANCH_TO_MAIN, MAIN_TO_VENDOR
-  const [returnReason, setReturnReason] = useState('EXCESS_STOCK');
+  const isBranchManager = user?.role === 'STORE_MANAGER';
+  const isClinicUser = user?.role === 'OPD_USER';
+
+  // Role Default Tab Selection
+  const defaultTab = isClinicUser ? 'create_return' : (isBranchManager || isAdmin ? 'inbound_wallet' : 'system_audit');
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // Master Data & Lists
   const [subBranches, setSubBranches] = useState([]);
   const [clinics, setClinics] = useState([]);
-  const [vendors, setVendors] = useState([]);
-  const [items, setItems] = useState([]);
-  const [availableStock, setAvailableStock] = useState([]);
-  const [returnsList, setReturnsList] = useState([]);
-  const [settings, setSettings] = useState({ vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' });
+  const [eligibleItems, setEligibleItems] = useState([]);
+  const [walletReturns, setWalletReturns] = useState([]);
+  const [clinicRejectWallet, setClinicRejectWallet] = useState([]);
+  const [creditNotes, setCreditNotes] = useState([]);
+  const [damagedStock, setDamagedStock] = useState([]);
+  const [systemReturns, setSystemReturns] = useState([]);
+  const [settings, setSettings] = useState({ currency_code: 'BHD', decimal_places: '3' });
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // Selected Return Detail Modal
-  const [selectedReturn, setSelectedReturn] = useState(null);
-
-  // Form State
+  // Form State for Creating Return Request
+  const [returnType, setReturnType] = useState(isClinicUser ? 'CLINIC_TO_BRANCH' : 'BRANCH_TO_MAIN');
   const [fromLocationId, setFromLocationId] = useState('');
   const [toLocationId, setToLocationId] = useState('');
-  const [vendorId, setVendorId] = useState('');
-  const [remarks, setRemarks] = useState('');
+  const [returnReason, setReturnReason] = useState('Damaged Item');
+  const [notes, setNotes] = useState('');
 
-  // File Upload State
-  const [attachedFile, setAttachedFile] = useState(null);
-  const [filePreview, setFilePreview] = useState(null);
-
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [returnQty, setReturnQty] = useState(1);
   const [lineItems, setLineItems] = useState([]);
 
-  function createEmptyLine() {
-    return {
-      batch_id: '',
-      item_id: '',
-      raw_item_id: '',
-      raw_batch_id: '',
-      unit_price: '0.000',
-      max_qty: 0,
-      qty: 1
-    };
-  }
+  // Modal States
+  const [selectedWalletReturn, setSelectedWalletReturn] = useState(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [selectedReturnDetail, setSelectedReturnDetail] = useState(null);
+  const [selectedCreditNoteDetail, setSelectedCreditNoteDetail] = useState(null);
 
   const currencyCode = settings.currency_code || 'BHD';
   const decimalPlaces = settings.decimal_places;
-  const isNoVat = settings.vat_calculation_mode === 'NO_VAT' || parseFloat(settings.vat_percent || 0) === 0;
-  const vatRate = isNoVat ? 0 : parseFloat(settings.vat_percent || 10.00);
 
-  const loadMasterData = async () => {
+  const loadData = async () => {
+    setLoading(true);
     try {
-      const [masterData, settingsRes, returnsRes] = await Promise.all([
+      const [masterData, settingsRes, walletRes, historyRes] = await Promise.all([
         apiFetch('/master-data'),
         apiFetch('/settings'),
+        apiFetch('/returns/wallet'),
         apiFetch('/returns')
       ]);
 
       const locs = masterData.locations || [];
-      const vList = masterData.vendors || [];
-      const itemList = masterData.items || [];
-
       const sbList = locs.filter(l => l.type === 'SUB_BRANCH');
       const cList = locs.filter(l => l.type === 'CLINIC');
 
       setSubBranches(sbList);
       setClinics(cList);
-      setVendors(vList);
-      setItems(itemList);
-      setReturnsList(returnsRes.returns || []);
+      setWalletReturns(walletRes.wallet_returns || []);
+      setSystemReturns(historyRes.returns || []);
 
-      const setts = settingsRes.settings || { vat_percent: '10.00', vat_calculation_mode: 'ITEM_WISE', currency_code: 'BHD', decimal_places: '3' };
+      const setts = settingsRes.settings || { currency_code: 'BHD', decimal_places: '3' };
       setSettings(setts);
 
-      // Default location setup for BRANCH_TO_MAIN
-      if (sbList.length > 0) {
-        const firstSub = sbList[0].id;
-        setFromLocationId(firstSub);
-        fetchStockBySourceLocation(firstSub);
+      // Default location assignment
+      const userLocId = user?.location_id || user?.raw_location_id;
+      let initialFromId = '';
+      let initialToId = '';
+
+      if (isClinicUser) {
+        setReturnType('CLINIC_TO_BRANCH');
+        const userClinic = cList.find(c => c.id == userLocId || c.raw_id == userLocId);
+        initialFromId = userClinic ? userClinic.id : (cList.length > 0 ? cList[0].id : '');
+        initialToId = sbList.length > 0 ? sbList[0].id : '';
+      } else if (isBranchManager) {
+        setReturnType('BRANCH_TO_MAIN');
+        const userBranch = sbList.find(s => s.id == userLocId || s.raw_id == userLocId);
+        initialFromId = userBranch ? userBranch.id : (sbList.length > 0 ? sbList[0].id : '');
+        initialToId = 1; // Main Store
+      } else {
+        setReturnType('BRANCH_TO_MAIN');
+        initialFromId = sbList.length > 0 ? sbList[0].id : '';
+        initialToId = 1;
       }
+
+      setFromLocationId(initialFromId);
+      setToLocationId(initialToId);
+
+      if (initialFromId) {
+        fetchEligibleItems(initialFromId);
+      }
+
+      // Load Reject Wallet for Clinic or Credit Notes/Damaged Stock for Admin/Branch
+      if (isClinicUser || initialFromId) {
+        const rejRes = await apiFetch(`/returns/reject-wallet?location_id=${initialFromId}`);
+        setClinicRejectWallet(rejRes.reject_wallet || []);
+      }
+
+      if (isAdmin || isBranchManager) {
+        const [cnRes, dmgRes] = await Promise.all([
+          apiFetch('/returns/credit-notes'),
+          apiFetch('/returns/damaged-stock')
+        ]);
+        setCreditNotes(cnRes.credit_notes || []);
+        setDamagedStock(dmgRes.damaged_stock || []);
+      }
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -110,358 +167,489 @@ export default function StockReturns() {
     }
   };
 
-  useEffect(() => {
-    loadMasterData();
-  }, []);
-
-  const handleReturnTypeChange = (type) => {
-    if (type === 'MAIN_TO_VENDOR' && !isAdmin) {
-      setMessage({ type: 'error', text: 'Main Store to Vendor Supplier returns can only be processed by System Administrator.' });
-      return;
-    }
-
-    setReturnType(type);
-    setMessage(null);
-    setLineItems([createEmptyLine()]);
-
-    if (type === 'CLINIC_TO_BRANCH') {
-      const sourceClinicObj = clinics[0];
-      const sourceClinic = sourceClinicObj?.id || '';
-      const destBranch = subBranches[0]?.id || '';
-      setFromLocationId(sourceClinic);
-      setToLocationId(destBranch);
-      setVendorId('');
-      if (sourceClinic) fetchStockBySourceLocation(sourceClinic, sourceClinicObj?.raw_id);
-    } else if (type === 'BRANCH_TO_MAIN') {
-      const sourceBranchObj = subBranches[0];
-      const sourceBranch = sourceBranchObj?.id || '';
-      setFromLocationId(sourceBranch);
-      setToLocationId(1); // Main Warehouse ID
-      setVendorId('');
-      if (sourceBranch) fetchStockBySourceLocation(sourceBranch, sourceBranchObj?.raw_id);
-    } else if (type === 'MAIN_TO_VENDOR') {
-      setFromLocationId(1); // Main Warehouse ID
-      setToLocationId('');
-      setVendorId(vendors[0]?.id || '');
-      fetchStockBySourceLocation(1, 1);
-    }
-  };
-
-  const fetchStockBySourceLocation = async (locId, rawLocId) => {
-    if (!locId && !rawLocId) {
-      setAvailableStock([]);
-      setLineItems([createEmptyLine()]);
-      return;
-    }
+  const fetchEligibleItems = async (locId) => {
+    if (!locId) return;
     try {
-      const allLocs = [...subBranches, ...clinics, { id: 1, raw_id: 1 }];
-      const matched = allLocs.find(l => l.id === locId || l.raw_id == locId || l.id === rawLocId);
-      const rId = rawLocId || matched?.raw_id || locId;
-      const encodedId = encodeURIComponent(locId || rId);
-      const res = await apiFetch(`/stock/location?location_id=${encodedId}&raw_location_id=${rId}`);
-      const stock = res.batches || [];
-      setAvailableStock(stock);
-      setLineItems([createEmptyLine()]);
+      const res = await apiFetch(`/returns/eligible-items?location_id=${locId}`);
+      setEligibleItems(res.items || []);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleSourceLocationChange = (val) => {
-    setFromLocationId(val);
-    const allLocs = [...subBranches, ...clinics, { id: 1, raw_id: 1 }];
-    const matched = allLocs.find(l => l.id === val || l.raw_id == val);
-    fetchStockBySourceLocation(val, matched?.raw_id);
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleFromLocationChange = (newLocId) => {
+    setFromLocationId(newLocId);
+    setLineItems([]);
+    setSelectedBatchId('');
+    fetchEligibleItems(newLocId);
   };
 
-  const handleLineChange = (index, field, value) => {
-    const updated = [...lineItems];
-    updated[index][field] = value;
-
-    if (field === 'batch_id') {
-      const selectedBatch = availableStock.find(b => b.batch_id == value || b.id == value);
-      if (selectedBatch) {
-        updated[index].item_id = selectedBatch.item_id;
-        updated[index].raw_item_id = selectedBatch.raw_item_id || selectedBatch.item_id;
-        updated[index].raw_batch_id = selectedBatch.raw_batch_id || selectedBatch.raw_id || selectedBatch.batch_id || selectedBatch.id;
-        updated[index].unit_price = selectedBatch.purchase_price || selectedBatch.selling_price || '0.000';
-        updated[index].max_qty = selectedBatch.quantity_available;
-      }
-    }
-    setLineItems(updated);
-  };
-
-  const addLine = () => setLineItems([...lineItems, createEmptyLine()]);
-  const removeLine = (index) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
-    const ext = file.name.split('.').pop().toLowerCase();
-
-    if (!allowedTypes.includes(ext)) {
-      setMessage({
-        type: 'error',
-        text: 'Invalid file format. Allowed types: PDF, Word (DOC/DOCX), Excel (XLS/XLSX), Images (JPG, PNG, GIF, WEBP).'
-      });
+  const handleAddLineItem = () => {
+    if (!selectedBatchId) {
+      setMessage({ type: 'error', text: 'Please select a stock item batch to return.' });
       return;
     }
 
-    setAttachedFile(file);
-    setFilePreview({
-      name: file.name,
-      size: (file.size / 1024).toFixed(1) + ' KB',
-      ext: ext.toUpperCase()
-    });
-    setMessage(null);
+    const batchObj = eligibleItems.find(b => b.id === selectedBatchId || b.raw_id == selectedBatchId);
+    if (!batchObj) return;
+
+    const qtyVal = parseInt(returnQty || 1);
+    if (qtyVal <= 0) {
+      setMessage({ type: 'error', text: 'Return quantity must be greater than zero.' });
+      return;
+    }
+
+    if (qtyVal > batchObj.max_returnable_qty) {
+      setMessage({ type: 'error', text: `Return quantity (${qtyVal}) cannot exceed max returnable limit of ${batchObj.max_returnable_qty} units.` });
+      return;
+    }
+
+    // Check if item batch already added to line items
+    const existingIdx = lineItems.findIndex(l => l.batch_id === batchObj.id);
+    if (existingIdx >= 0) {
+      const updated = [...lineItems];
+      const newTotalQty = updated[existingIdx].quantity + qtyVal;
+      if (newTotalQty > batchObj.max_returnable_qty) {
+        setMessage({ type: 'error', text: `Total batch return quantity (${newTotalQty}) cannot exceed max returnable limit of ${batchObj.max_returnable_qty} units.` });
+        return;
+      }
+      updated[existingIdx].quantity = newTotalQty;
+      updated[existingIdx].total_amount = newTotalQty * parseFloat(batchObj.unit_cost || 0);
+      setLineItems(updated);
+    } else {
+      setLineItems([...lineItems, {
+        batch_id: batchObj.id,
+        raw_batch_id: batchObj.raw_id || batchObj.batch_id,
+        item_id: batchObj.item_id,
+        raw_item_id: batchObj.raw_item_id,
+        item_name: batchObj.item_name,
+        item_code: batchObj.item_code,
+        batch_code: batchObj.batch_code,
+        expiry_date: batchObj.expiry_date,
+        unit_rate: parseFloat(batchObj.unit_cost || 0),
+        quantity: qtyVal,
+        max_returnable_qty: batchObj.max_returnable_qty,
+        total_amount: qtyVal * parseFloat(batchObj.unit_cost || 0)
+      }]);
+    }
+
+    setSelectedBatchId('');
+    setReturnQty(1);
   };
 
-  const removeFile = () => {
-    setAttachedFile(null);
-    setFilePreview(null);
+  const removeLineItem = (idx) => {
+    setLineItems(lineItems.filter((_, i) => i !== idx));
   };
 
-  // Calculations for current return draft
-  let grossSubtotal = 0;
-  lineItems.forEach(item => {
-    const price = parseFloat(item.unit_price || 0);
-    const qty = parseInt(item.qty) || 0;
-    grossSubtotal += price * qty;
-  });
-
-  const vatAmount = isNoVat ? 0 : (grossSubtotal * (vatRate / 100));
-  const grandTotalVal = grossSubtotal + vatAmount;
-
-  const validateReturnForm = () => {
-    setMessage(null);
-    if (!fromLocationId) {
-      setMessage({ type: 'error', text: 'Please select a valid source location for the return.' });
-      return false;
-    }
-
-    if (returnType === 'MAIN_TO_VENDOR' && !vendorId) {
-      setMessage({ type: 'error', text: 'Please select a destination vendor supplier for Main Store return.' });
-      return false;
-    }
-
-    if (returnType !== 'MAIN_TO_VENDOR' && !toLocationId) {
-      setMessage({ type: 'error', text: 'Please select a destination location for the return.' });
-      return false;
-    }
-
-    const batchQtyTotals = {};
-    const batchDuplicateCounts = {};
-
-    lineItems.forEach(l => {
-      if (l.batch_id) {
-        const bId = String(l.batch_id);
-        const qty = parseInt(l.qty) || 0;
-        batchQtyTotals[bId] = (batchQtyTotals[bId] || 0) + qty;
-        batchDuplicateCounts[bId] = (batchDuplicateCounts[bId] || 0) + 1;
-      }
-    });
-
-    for (let i = 0; i < lineItems.length; i++) {
-      const line = lineItems[i];
-      if (!line.batch_id || line.qty <= 0) {
-        setMessage({ type: 'error', text: `Line #${i + 1} requires a valid batch selection and return quantity > 0.` });
-        return false;
-      }
-
-      const bId = String(line.batch_id);
-      const cumulativeQty = batchQtyTotals[bId] || 0;
-      const selectedBatch = availableStock.find(b => (b.batch_id || b.id) == line.batch_id);
-      const batchCode = selectedBatch?.batch_code || `Batch #${bId}`;
-      const availStock = line.max_qty || selectedBatch?.quantity_available || 0;
-
-      if (batchDuplicateCounts[bId] > 1) {
-        setMessage({
-          type: 'error',
-          text: `Duplicate batch entry blocked: Batch '${batchCode}' is selected on multiple lines! Cumulative requested quantity (${cumulativeQty}) exceeds available stock (${availStock} units). Please combine into a single line item.`
-        });
-        return false;
-      }
-
-      if (cumulativeQty > availStock) {
-        setMessage({
-          type: 'error',
-          text: `Stock return blocked: Cumulative requested quantity (${cumulativeQty}) for batch '${batchCode}' exceeds available stock (${availStock} units) at source location.`
-        });
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handlePostReturn = async (e) => {
+  const handleCreateReturnSubmit = async (e) => {
     e.preventDefault();
-    if (!validateReturnForm()) return;
+    if (!fromLocationId || !toLocationId) {
+      setMessage({ type: 'error', text: 'Please select valid source and destination locations.' });
+      return;
+    }
+    if (lineItems.length === 0) {
+      setMessage({ type: 'error', text: 'Please add at least one item batch to the return request list.' });
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const selectedFrom = [...subBranches, ...clinics, { id: 1, raw_id: 1 }].find(l => l.id === fromLocationId || l.raw_id == fromLocationId);
-      const selectedTo = [...subBranches, { id: 1, raw_id: 1 }].find(l => l.id === toLocationId || l.raw_id == toLocationId);
-      const selectedVendor = vendors.find(v => v.id === vendorId || v.raw_id == vendorId);
-
       const payload = {
         return_type: returnType,
         from_location_id: fromLocationId,
-        raw_from_location_id: selectedFrom?.raw_id || fromLocationId,
         to_location_id: toLocationId,
-        raw_to_location_id: selectedTo?.raw_id || toLocationId,
-        vendor_id: vendorId,
-        raw_vendor_id: selectedVendor?.raw_id || vendorId,
-        return_reason: returnReason,
-        remarks: remarks,
-        vat_percent: vatRate,
+        reason: returnReason,
+        notes: notes,
         items: lineItems.map(item => ({
           item_id: item.item_id,
           raw_item_id: item.raw_item_id,
           batch_id: item.batch_id,
           raw_batch_id: item.raw_batch_id,
-          qty: item.qty,
-          unit_price: item.unit_price
+          quantity: item.quantity,
+          unit_rate: item.unit_rate
         }))
       };
 
-      let reqOptions = {};
-      if (attachedFile) {
-        const formData = new FormData();
-        formData.append('payload', JSON.stringify(payload));
-        formData.append('document_file', attachedFile);
-        reqOptions = { method: 'POST', body: formData };
-      } else {
-        reqOptions = { method: 'POST', body: JSON.stringify(payload) };
-      }
-
-      const res = await apiFetch('/returns', reqOptions);
+      const res = await apiFetch('/returns/create', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
 
       if (res.success) {
-        setMessage({ type: 'success', text: `Stock Return ${res.return_no} posted successfully! Inventory updated across locations.` });
-        setLineItems([createEmptyLine()]);
-        setRemarks('');
-        setAttachedFile(null);
-        setFilePreview(null);
-        loadMasterData();
+        setMessage({ type: 'success', text: res.message });
+        setLineItems([]);
+        setNotes('');
+        loadData();
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.message || 'Failed to post stock return' });
+      setMessage({ type: 'error', text: err.message || 'Failed to submit stock return request' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const historyColumns = [
+  const handleAcceptReturn = async (ret) => {
+    if (!window.confirm(`Accept Stock Return ${ret.return_reference}? Items will be credited into your Available Stock.`)) return;
+
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/returns/accept', {
+        method: 'POST',
+        body: JSON.stringify({ return_id: ret.id, raw_return_id: ret.raw_id })
+      });
+
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+        setSelectedWalletReturn(null);
+        loadData();
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to accept return' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRejectReturnSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedWalletReturn) return;
+    if (!rejectionReasonInput.trim()) {
+      setMessage({ type: 'error', text: 'Rejection reason is required.' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/returns/reject', {
+        method: 'POST',
+        body: JSON.stringify({
+          return_id: selectedWalletReturn.id,
+          raw_return_id: selectedWalletReturn.raw_id,
+          rejection_reason: rejectionReasonInput.trim()
+        })
+      });
+
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+        setShowRejectModal(false);
+        setSelectedWalletReturn(null);
+        setRejectionReasonInput('');
+        loadData();
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to reject return' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRestoreRejectStock = async (rej) => {
+    if (!window.confirm(`Restore ${rej.quantity} units of ${rej.item_name} (Batch: ${rej.batch_code}) back into Clinic Available Stock?`)) return;
+
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/returns/restore-reject', {
+        method: 'POST',
+        body: JSON.stringify({ rejection_id: rej.id, raw_rejection_id: rej.raw_id })
+      });
+
+      if (res.success) {
+        setMessage({ type: 'success', text: res.message });
+        loadData();
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to restore stock' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Selected Batch Information
+  const selectedBatchObj = eligibleItems.find(b => b.id === selectedBatchId || b.raw_id == selectedBatchId);
+
+  // Column definitions for DataTables
+  const walletColumns = [
     {
-      header: 'Return Reference #',
-      accessor: 'return_no',
+      header: 'Return Ref #',
+      accessor: 'return_reference',
+      render: (r) => <span className="font-mono font-bold text-brand-blue">{r.return_reference}</span>
+    },
+    {
+      header: 'Returning Location',
+      accessor: 'from_location_name',
+      render: (r) => <span className="font-semibold text-slate-900 dark:text-slate-100">{r.from_location_name}</span>
+    },
+    {
+      header: 'Reason',
+      accessor: 'reason',
+      render: (r) => <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300">{r.reason}</span>
+    },
+    {
+      header: 'Items & Qty',
+      accessor: 'items',
+      render: (r) => (
+        <div className="space-y-1 text-xs">
+          {(r.items || []).map((i, idx) => (
+            <div key={idx} className="font-mono">
+              <span className="font-bold text-slate-800 dark:text-slate-200">{i.item_name}</span> (Batch: {i.batch_code}) - <span className="font-extrabold text-brand-orange">{i.quantity} units</span>
+            </div>
+          ))}
+        </div>
+      )
+    },
+    {
+      header: 'Date Created',
+      accessor: 'created_at',
+      render: (r) => <span className="font-mono text-slate-500">{formatDate(r.created_at)}</span>
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      className: 'text-center',
+      render: (r) => (
+        <div className="flex items-center justify-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleAcceptReturn(r)}
+            disabled={submitting}
+            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-2xs"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Accept Return
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedWalletReturn(r);
+              setShowRejectModal(true);
+            }}
+            disabled={submitting}
+            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-2xs"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            Reject Return
+          </button>
+        </div>
+      )
+    }
+  ];
+
+  const rejectWalletColumns = [
+    {
+      header: 'Return Ref #',
+      accessor: 'return_reference',
+      render: (r) => <span className="font-mono font-bold text-brand-blue">{r.return_reference}</span>
+    },
+    {
+      header: 'Item & Batch',
+      accessor: 'item_name',
+      render: (r) => (
+        <div>
+          <p className="font-bold text-slate-900 dark:text-slate-100">{r.item_name}</p>
+          <p className="text-[10px] font-mono text-slate-500">Code: {r.item_code} • Batch: {r.batch_code}</p>
+        </div>
+      )
+    },
+    {
+      header: 'Rejected Quantity',
+      accessor: 'quantity',
+      render: (r) => <span className="font-mono font-extrabold text-rose-600 text-sm">{r.quantity} units</span>
+    },
+    {
+      header: 'Branch Rejection Reason',
+      accessor: 'rejection_reason',
+      render: (r) => <span className="text-slate-600 dark:text-slate-400 italic text-xs">{r.rejection_reason || 'Rejected by Branch'}</span>
+    },
+    {
+      header: 'Action',
+      accessor: 'id',
+      className: 'text-center',
       render: (r) => (
         <button
           type="button"
-          onClick={() => setSelectedReturn(r)}
-          className="font-mono font-bold text-brand-blue hover:underline focus:outline-none flex items-center gap-1 text-left"
-          title="Click to view full return items breakdown & document"
+          onClick={() => handleRestoreRejectStock(r)}
+          disabled={submitting}
+          className="px-3 py-1 rounded-xl bg-brand-blue hover:bg-brand-blue/90 text-white text-xs font-bold transition-all flex items-center gap-1 mx-auto shadow-md"
         >
-          <RotateCcw className="w-3.5 h-3.5 text-brand-blue" />
-          {r.return_no}
+          <RefreshCw className="w-3.5 h-3.5" />
+          Restore to Clinic Stock
         </button>
       )
+    }
+  ];
+
+  const creditNotesColumns = [
+    {
+      header: 'Credit Note #',
+      accessor: 'credit_note_no',
+      render: (c) => <span className="font-mono font-bold text-purple-600 dark:text-purple-400">{c.credit_note_no}</span>
     },
     {
-      header: 'Return Workflow Type',
+      header: 'Sub-Branch Location',
+      accessor: 'branch_name',
+      render: (c) => <span className="font-semibold text-slate-900 dark:text-slate-100">{c.branch_name} ({c.branch_code})</span>
+    },
+    {
+      header: 'Original Transfer Ref',
+      accessor: 'original_transfer_no',
+      render: (c) => <span className="font-mono text-slate-500">{c.original_transfer_no || '-'}</span>
+    },
+    {
+      header: `Credit Amount (${currencyCode})`,
+      accessor: 'total_amount',
+      render: (c) => <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(c.total_amount, currencyCode, decimalPlaces)}</span>
+    },
+    {
+      header: 'Reason',
+      accessor: 'reason',
+      render: (c) => <span className="text-slate-600 dark:text-slate-400 text-xs italic">{c.reason || 'Branch return rejected by Main Store'}</span>
+    },
+    {
+      header: 'Issued Date',
+      accessor: 'created_at',
+      render: (c) => <span className="font-mono text-slate-500">{formatDate(c.created_at)}</span>
+    },
+    {
+      header: 'Details',
+      accessor: 'id',
+      className: 'text-center',
+      render: (c) => (
+        <button
+          type="button"
+          onClick={() => setSelectedCreditNoteDetail(c)}
+          className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 border border-purple-300 text-xs font-bold hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1 mx-auto"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          View Note
+        </button>
+      )
+    }
+  ];
+
+  const damagedStockColumns = [
+    {
+      header: 'Return Ref #',
+      accessor: 'return_reference',
+      render: (d) => <span className="font-mono font-bold text-brand-blue">{d.return_reference}</span>
+    },
+    {
+      header: 'Item & Batch',
+      accessor: 'item_name',
+      render: (d) => (
+        <div>
+          <p className="font-bold text-slate-900 dark:text-slate-100">{d.item_name}</p>
+          <p className="text-[10px] font-mono text-slate-500">Code: {d.item_code} • Batch: {d.batch_code}</p>
+        </div>
+      )
+    },
+    {
+      header: 'Damaged Quantity',
+      accessor: 'quantity',
+      render: (d) => <span className="font-mono font-extrabold text-rose-600 text-sm">{d.quantity} units</span>
+    },
+    {
+      header: 'Location Stored',
+      accessor: 'location_name',
+      render: (d) => <span className="font-semibold text-slate-700 dark:text-slate-300">{d.location_name}</span>
+    },
+    {
+      header: 'Reason',
+      accessor: 'reason',
+      render: (d) => <span className="text-slate-500 italic text-xs">{d.reason}</span>
+    },
+    {
+      header: 'Logged Date',
+      accessor: 'created_at',
+      render: (d) => <span className="font-mono text-slate-500">{formatDate(d.created_at)}</span>
+    }
+  ];
+
+  const systemAuditColumns = [
+    {
+      header: 'Return Ref #',
+      accessor: 'return_reference',
+      render: (r) => <span className="font-mono font-bold text-brand-blue">{r.return_reference}</span>
+    },
+    {
+      header: 'Workflow Type',
       accessor: 'return_type',
       render: (r) => (
-        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-          r.return_type === 'CLINIC_TO_BRANCH' ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 border-amber-300' :
-          r.return_type === 'BRANCH_TO_MAIN' ? 'bg-blue-50 dark:bg-blue-950 text-brand-blue border-blue-200' :
-          'bg-purple-50 dark:bg-purple-950 text-purple-700 border-purple-300'
-        }`}>
-          {r.return_type === 'CLINIC_TO_BRANCH' ? 'Clinic ➔ Sub-Branch' :
-           r.return_type === 'BRANCH_TO_MAIN' ? 'Sub-Branch ➔ Main Store' :
-           'Main Store ➔ Vendor'}
+        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 uppercase">
+          {r.return_type === 'CLINIC_TO_BRANCH' ? 'Clinic → Branch' : 'Branch → Main Store'}
         </span>
       )
     },
     {
-      header: 'Source Location',
+      header: 'From Location',
       accessor: 'from_location_name',
-      render: (r) => <span className="font-semibold text-slate-800 dark:text-slate-200">{r.from_location_name || 'Main Warehouse'}</span>
+      render: (r) => <span className="font-semibold text-slate-900 dark:text-slate-100">{r.from_location_name}</span>
     },
     {
-      header: 'Destination (Branch / Vendor)',
+      header: 'To Location',
       accessor: 'to_location_name',
-      render: (r) => (
-        <span className="font-semibold text-slate-800 dark:text-slate-200">
-          {r.return_type === 'MAIN_TO_VENDOR' ? (r.vendor_name || 'Vendor Supplier') : (r.to_location_name || 'Main Store')}
-        </span>
-      )
+      render: (r) => <span className="font-semibold text-slate-700 dark:text-slate-300">{r.to_location_name}</span>
     },
     {
-      header: 'Return Reason',
-      accessor: 'return_reason',
-      render: (r) => (
-        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase ${
-          r.return_reason === 'EXPIRED' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-          r.return_reason === 'DAMAGED' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-          'bg-slate-100 text-slate-700 border border-slate-300'
-        }`}>
-          {r.return_reason}
-        </span>
-      )
+      header: 'Status',
+      accessor: 'status',
+      render: (r) => {
+        const isAcc = r.status === 'ACCEPTED';
+        const isRej = r.status === 'REJECTED';
+        return (
+          <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 w-fit ${
+            isAcc ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300' :
+            isRej ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300' :
+            'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300'
+          }`}>
+            {isAcc ? <CheckCircle2 className="w-3.5 h-3.5" /> : isRej ? <XCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+            {r.status === 'PENDING_ACCEPTANCE' ? 'In Return Wallet' : r.status}
+          </span>
+        );
+      }
     },
     {
-      header: `Total Value (${currencyCode})`,
-      accessor: 'total_val',
-      render: (r) => <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatCurrency(r.total_val, currencyCode, decimalPlaces)}</span>
-    },
-    {
-      header: 'Attached Document',
-      accessor: 'document_url',
-      render: (r) => r.document_url ? (
-        <a
-          href={r.document_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 text-[11px] font-bold hover:bg-emerald-100 transition-all shadow-2xs"
-          title="Click to view attached document proof"
-        >
-          <Paperclip className="w-3.5 h-3.5" /> View File
-        </a>
-      ) : (
-        <span className="text-slate-400 text-[11px] italic">No document</span>
-      )
-    },
-    {
-      header: 'Date',
+      header: 'Date Created',
       accessor: 'created_at',
-      render: (r) => <span className="font-mono text-slate-500 text-xs">{formatDate(r.created_at)}</span>
+      render: (r) => <span className="font-mono text-slate-500">{formatDate(r.created_at)}</span>
+    },
+    {
+      header: 'Action',
+      accessor: 'id',
+      className: 'text-center',
+      render: (r) => (
+        <button
+          type="button"
+          onClick={() => setSelectedReturnDetail(r)}
+          className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-blue hover:text-white border border-slate-300 text-xs font-bold transition-all flex items-center gap-1 mx-auto"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          View
+        </button>
+      )
     }
   ];
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header Banner */}
+      {/* Top Banner */}
       <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
         <div>
           <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
             <RotateCcw className="w-5 h-5 text-brand-orange" />
-            Stock Returns & Defective Item Management
+            Stock Return Management (Controlled Return Wallet)
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">3-Way Stock Return Workflows: Clinic ➔ Sub-Branch, Sub-Branch ➔ Main Store, and Main Store ➔ Vendor Supplier</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Multi-stage stock return workflow: Clinic → Sub-Branch → Main Store with Return Wallet acceptance controls
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
-            <Calculator className="w-3.5 h-3.5" />
-            VAT Policy: {isNoVat ? 'NO VAT (0%)' : `${vatRate}% Tax`}
-          </span>
-          <span className="px-3 py-1 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 text-xs font-bold">
-            Stock Reversal & Deductions ({currencyCode})
+          <span className="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 text-xs font-bold flex items-center gap-1">
+            <Wallet className="w-3.5 h-3.5 text-brand-orange" />
+            Pending Wallet Returns: {walletReturns.length}
           </span>
         </div>
       </div>
@@ -475,535 +663,595 @@ export default function StockReturns() {
         </div>
       )}
 
-      {/* Return Creation Form */}
-      <form onSubmit={handlePostReturn} className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
-        
-        {/* Workflow Selector Tabs */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">Select Stock Return Trajectory *</label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            
+      {/* Role-Scoped Tab Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 overflow-x-auto">
+        {(isAdmin || isBranchManager) && (
+          <button
+            onClick={() => setActiveTab('inbound_wallet')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'inbound_wallet'
+                ? 'bg-brand-blue text-white shadow-md glow-blue'
+                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            {isAdmin ? 'Main Store Return Wallet' : 'Branch Return Wallet'} ({walletReturns.length})
+          </button>
+        )}
+
+        {(isClinicUser || isBranchManager) && (
+          <button
+            onClick={() => setActiveTab('create_return')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'create_return'
+                ? 'bg-brand-blue text-white shadow-md glow-blue'
+                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+            }`}
+          >
+            <Plus className="w-4 h-4" />
+            {isClinicUser ? 'Create Return to Branch' : 'Create Return to Main Store'}
+          </button>
+        )}
+
+        {isClinicUser && (
+          <button
+            onClick={() => setActiveTab('reject_wallet')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'reject_wallet'
+                ? 'bg-rose-600 text-white shadow-md glow-rose'
+                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Clinic Return Reject Wallet ({clinicRejectWallet.length})
+          </button>
+        )}
+
+        {isAdmin && (
+          <>
             <button
-              type="button"
-              onClick={() => handleReturnTypeChange('CLINIC_TO_BRANCH')}
-              className={`p-3.5 rounded-2xl border text-left transition-all flex items-center gap-3 ${
-                returnType === 'CLINIC_TO_BRANCH'
-                  ? 'bg-amber-50 dark:bg-amber-950/80 border-amber-400 text-amber-900 dark:text-amber-200 shadow-sm font-bold ring-2 ring-amber-400/50'
-                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+              onClick={() => setActiveTab('credit_notes')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'credit_notes'
+                  ? 'bg-purple-600 text-white shadow-md glow-purple'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50'
               }`}
             >
-              <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900 text-amber-700">
-                <Building className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold block">Clinic ➔ Sub-Branch Return</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Return stock from Clinic Outlet to Sub-Branch Hub</span>
-              </div>
+              <FileText className="w-4 h-4" />
+              Branch Credit Notes Directory ({creditNotes.length})
             </button>
 
             <button
-              type="button"
-              onClick={() => handleReturnTypeChange('BRANCH_TO_MAIN')}
-              className={`p-3.5 rounded-2xl border text-left transition-all flex items-center gap-3 ${
-                returnType === 'BRANCH_TO_MAIN'
-                  ? 'bg-blue-50 dark:bg-blue-950/80 border-brand-blue text-brand-blue dark:text-blue-200 shadow-sm font-bold ring-2 ring-brand-blue/50'
-                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+              onClick={() => setActiveTab('damaged_stock')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'damaged_stock'
+                  ? 'bg-slate-800 text-white shadow-md'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
               }`}
             >
-              <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900 text-brand-blue">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold block">Sub-Branch ➔ Main Store Return</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Return stock from Sub-Branch Hub to Main Warehouse</span>
-              </div>
+              <Archive className="w-4 h-4" />
+              Damaged / Rejected Stock ({damagedStock.length})
             </button>
+          </>
+        )}
 
-            <button
-              type="button"
-              disabled={!isAdmin}
-              onClick={() => handleReturnTypeChange('MAIN_TO_VENDOR')}
-              className={`p-3.5 rounded-2xl border text-left transition-all flex items-center gap-3 ${
-                !isAdmin
-                  ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
-                  : returnType === 'MAIN_TO_VENDOR'
-                  ? 'bg-purple-50 dark:bg-purple-950/80 border-purple-400 text-purple-900 dark:text-purple-200 shadow-sm font-bold ring-2 ring-purple-400/50'
-                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
-              }`}
-              title={!isAdmin ? 'Restricted to System Administrator Only' : 'Return stock back to Supplier'}
-            >
-              <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900 text-purple-700">
-                <ShoppingCart className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold block">Main Store ➔ Vendor Supplier</span>
-                  {!isAdmin && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
-                      ADMIN ONLY
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Return defective/expired stock back to Supplier</span>
-              </div>
-            </button>
+        <button
+          onClick={() => setActiveTab('system_audit')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'system_audit'
+              ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-md'
+              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          Returns Audit Ledger ({systemReturns.length})
+        </button>
+      </div>
 
-          </div>
-        </div>
-
-        {/* Source & Destination Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Source Location */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Location (Debited Stock) *</label>
-            {returnType === 'CLINIC_TO_BRANCH' ? (
-              <SearchableSelect
-                placeholder="Select Source Clinic Outlet..."
-                options={clinics.map(c => ({ value: c.id, label: `${c.name} (${c.code})` }))}
-                value={fromLocationId}
-                onChange={handleSourceLocationChange}
-              />
-            ) : returnType === 'BRANCH_TO_MAIN' ? (
-              isAdmin ? (
-                <SearchableSelect
-                  placeholder="Select Source Sub-Branch..."
-                  options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})` }))}
-                  value={fromLocationId}
-                  onChange={handleSourceLocationChange}
-                />
-              ) : (
-                <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between shadow-xs h-10">
-                  <span>{subBranches.find(s => s.id === fromLocationId || s.raw_id == fromLocationId)?.name || 'Assigned Sub-Branch'}</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-brand-blue/10 text-brand-blue border border-brand-blue/30 uppercase">
-                    Locked to Logged-in Branch
-                  </span>
-                </div>
-              )
-            ) : (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
-                Central Main Warehouse (LOC-MAIN-01)
-              </div>
-            )}
+      {/* TAB 1: INBOUND RETURN WALLET (Branch Manager or Admin) */}
+      {activeTab === 'inbound_wallet' && (isAdmin || isBranchManager) && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+            <Wallet className="w-5 h-5 text-brand-orange shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Pending Return Wallet Authorization</p>
+              <p className="mt-0.5">
+                Returned items in the Return Wallet do <strong>NOT</strong> count as available stock until explicitly accepted.
+                Click <strong>Accept Return</strong> to credit the items to your available stock, or <strong>Reject Return</strong> to isolate the items.
+              </p>
+            </div>
           </div>
 
-          {/* Destination Location / Vendor */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination (Credited Location / Vendor) *</label>
-            {returnType === 'CLINIC_TO_BRANCH' ? (
-              <SearchableSelect
-                placeholder="Select Destination Sub-Branch..."
-                options={subBranches.map(sb => ({ value: sb.id, label: `${sb.name} (${sb.code})` }))}
-                value={toLocationId}
-                onChange={(val) => setToLocationId(val)}
-              />
-            ) : returnType === 'BRANCH_TO_MAIN' ? (
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
-                Central Main Warehouse (LOC-MAIN-01)
-              </div>
-            ) : (
-              <SearchableSelect
-                placeholder="Select Vendor Supplier..."
-                options={vendors.map(v => ({ value: v.id, label: v.name, sublabel: `Code: ${v.code}` }))}
-                value={vendorId}
-                onChange={(val) => setVendorId(val)}
-              />
-            )}
-          </div>
-
-          {/* Return Reason */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Stock Return Reason *</label>
-            <select
-              value={returnReason}
-              onChange={(e) => setReturnReason(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 font-bold focus:border-brand-blue"
-            >
-              <option value="EXCESS_STOCK">Excess Stock / Slow Moving Items</option>
-              <option value="EXPIRED">Expired Stock Batch</option>
-              <option value="DAMAGED">Damaged / Defective Goods</option>
-              <option value="WRONG_ITEM">Wrong Item Delivered</option>
-              <option value="OTHER">Other Reason (Specify in Remarks)</option>
-            </select>
-          </div>
-
-        </div>
-
-        {/* Remarks / Dispatch Notes */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Return Remarks / Dispatch Note</label>
-          <input
-            type="text"
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            placeholder="e.g. Returning 5 damaged boxes to vendor as per RMA agreement..."
-            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-blue"
+          <DataTable
+            title={isAdmin ? "Main Store Pending Return Wallet" : "Branch Pending Return Wallet"}
+            subtitle="Review pending stock return requests submitted by lower locations"
+            columns={walletColumns}
+            data={walletReturns}
+            searchable={true}
+            defaultPageSize={10}
           />
         </div>
+      )}
 
-        {/* Line Items Table */}
-        <div className="pt-2">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Select Batches to Return</h3>
-            <button
-              type="button"
-              onClick={addLine}
-              className="px-3.5 py-1.5 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/40 text-xs font-semibold hover:bg-rose-200 dark:hover:bg-rose-900/40 transition-all flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Return Line
-            </button>
+      {/* TAB 2: CREATE STOCK RETURN REQUEST */}
+      {activeTab === 'create_return' && (isClinicUser || isBranchManager) && (
+        <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-brand-orange" />
+              {isClinicUser ? 'Initiate Clinic Stock Return to Sub-Branch' : 'Initiate Sub-Branch Stock Return to Main Store'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Returned items will be validated against original received transfer limits and placed into the destination's Return Wallet
+            </p>
           </div>
 
-          <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 min-h-[380px] pb-48">
-            <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
-              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
-                <tr>
-                  <th className="p-2.5 w-12 text-center">#</th>
-                  <th className="p-2.5 min-w-[420px]">Source Batch Code & Item *</th>
-                  <th className="p-2.5 w-28 text-center">Stock Avail</th>
-                  <th className="p-2.5 w-24 text-center">Return Qty *</th>
-                  <th className="p-2.5 w-32 text-right">Unit Price ({currencyCode})</th>
-                  <th className="p-2.5 w-32 text-right">Subtotal ({currencyCode})</th>
-                  <th className="p-2.5 w-10 text-center"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                {(() => {
-                  const batchQtyTotals = {};
-                  const batchDuplicateCounts = {};
+          <form onSubmit={handleCreateReturnSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Return Workflow Type</label>
+                <input
+                  type="text"
+                  disabled
+                  value={returnType === 'CLINIC_TO_BRANCH' ? 'Clinic Return to Sub-Branch' : 'Sub-Branch Return to Main Store'}
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200"
+                />
+              </div>
 
-                  lineItems.forEach(l => {
-                    if (l.batch_id) {
-                      const bId = String(l.batch_id);
-                      const qty = parseInt(l.qty) || 0;
-                      batchQtyTotals[bId] = (batchQtyTotals[bId] || 0) + qty;
-                      batchDuplicateCounts[bId] = (batchDuplicateCounts[bId] || 0) + 1;
-                    }
-                  });
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Location *</label>
+                {isClinicUser || isBranchManager ? (
+                  <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {user?.location_name || 'Assigned Location'}
+                  </div>
+                ) : (
+                  <SearchableSelect
+                    options={isClinicUser ? clinics.map(c => ({ value: c.id, label: `${c.name} (${c.code})` })) : subBranches.map(s => ({ value: s.id, label: `${s.name} (${s.code})` }))}
+                    value={fromLocationId}
+                    onChange={(val) => handleFromLocationChange(val)}
+                  />
+                )}
+              </div>
 
-                  return lineItems.map((line, index) => {
-                    const price = parseFloat(line.unit_price || 0);
-                    const qty = parseInt(line.qty) || 0;
-                    const lineSubtotal = price * qty;
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Destination Location *</label>
+                {returnType === 'CLINIC_TO_BRANCH' ? (
+                  <SearchableSelect
+                    options={subBranches.map(s => ({ value: s.id, label: `${s.name} (${s.code})` }))}
+                    value={toLocationId}
+                    onChange={(val) => setToLocationId(val)}
+                  />
+                ) : (
+                  <div className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Central Main Store
+                  </div>
+                )}
+              </div>
+            </div>
 
-                    const bId = String(line.batch_id || '');
-                    const cumulativeQty = batchQtyTotals[bId] || 0;
-                    const maxStock = line.max_qty || 0;
-                    const isDuplicateEntry = line.batch_id && (batchDuplicateCounts[bId] > 1);
-                    const isCumulativeOverStock = line.batch_id && (cumulativeQty > maxStock);
-                    const isRowWarning = isDuplicateEntry || isCumulativeOverStock;
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Return Reason *</label>
+                <SearchableSelect
+                  options={RETURN_REASON_OPTIONS}
+                  value={returnReason}
+                  onChange={(val) => setReturnReason(val)}
+                />
+              </div>
 
-                    return (
-                      <tr
-                        key={index}
-                        className={`transition-all ${
-                          isRowWarning
-                            ? 'bg-rose-50/90 dark:bg-rose-950/60 border-2 border-rose-500'
-                            : 'bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-950/50'
-                        }`}
-                      >
-                        <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Notes / Remarks (Optional)</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Near expiry items returned as per policy"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-brand-blue"
+                />
+              </div>
+            </div>
 
-                        <td className="p-1 min-w-[420px]">
-                          <SearchableSelect
-                            placeholder="Select Source Item Batch..."
-                            options={availableStock.map(b => ({
-                              value: b.batch_id || b.id,
-                              label: `${b.item_name} [${b.batch_code}]`,
-                              sublabel: `Code: ${b.item_code} | Exp: ${b.expiry_date} | Avail: ${b.quantity_available}`
-                            }))}
-                            value={line.batch_id}
-                            onChange={(val) => handleLineChange(index, 'batch_id', val)}
-                          />
-                          {isRowWarning && (
-                            <div className="mt-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 bg-rose-100 dark:bg-rose-900/60 p-2 rounded-lg border border-rose-300 dark:border-rose-800 animate-in fade-in duration-150">
-                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                              <span>
-                                {isDuplicateEntry && isCumulativeOverStock
-                                  ? `⚠️ DUPLICATE ENTRY BLOCKED! Total requested across lines (${cumulativeQty}) EXCEEDS available stock (${maxStock} units).`
-                                  : isDuplicateEntry
-                                  ? `⚠️ DUPLICATE ENTRY BLOCKED! Selected multiple times (Cumulative requested: ${cumulativeQty} / Available stock: ${maxStock} units).`
-                                  : `⚠️ STOCK EXCEEDED! Requested (${cumulativeQty}) exceeds available stock (${maxStock} units).`}
-                              </span>
-                            </div>
-                          )}
+            {/* Line Item Batch Selection Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Select Stock Batch to Return</h4>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <div className="md:col-span-6">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Stock Item Batch *</label>
+                  <SearchableSelect
+                    placeholder="Search Batch by item name, code, or batch code..."
+                    options={eligibleItems.map(b => ({
+                      value: b.id,
+                      label: `${b.item_name} (Batch: ${b.batch_code})`,
+                      sublabel: `Avail: ${b.quantity_available} | Max Returnable: ${b.max_returnable_qty} | Exp: ${formatDate(b.expiry_date)}`
+                    }))}
+                    value={selectedBatchId}
+                    onChange={(val) => setSelectedBatchId(val)}
+                  />
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Return Qty {selectedBatchObj ? `(Max: ${selectedBatchObj.max_returnable_qty})` : ''}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedBatchObj ? selectedBatchObj.max_returnable_qty : 9999}
+                    value={returnQty}
+                    onChange={(e) => setReturnQty(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold"
+                  />
+                </div>
+
+                <div className="md:col-span-3">
+                  <button
+                    type="button"
+                    onClick={handleAddLineItem}
+                    className="w-full py-2 rounded-xl bg-brand-blue text-white font-bold text-xs shadow-md glow-blue hover:bg-brand-blue/90 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add to Return List
+                  </button>
+                </div>
+              </div>
+
+              {selectedBatchObj && (
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 text-xs text-blue-900 dark:text-blue-300 flex items-center justify-between font-mono">
+                  <span>Batch: <strong>{selectedBatchObj.batch_code}</strong> | Exp: {formatDate(selectedBatchObj.expiry_date)}</span>
+                  <span>Received: {selectedBatchObj.total_received} | Already Returned: {selectedBatchObj.total_returned} | Max Eligible: <strong className="text-brand-orange">{selectedBatchObj.max_returnable_qty} units</strong></span>
+                </div>
+              )}
+            </div>
+
+            {/* Line Items Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3">#</th>
+                    <th className="p-3">Item & Code</th>
+                    <th className="p-3">Batch Code & Expiry</th>
+                    <th className="p-3 text-center">Return Qty</th>
+                    <th className="p-3 text-right">Unit Rate ({currencyCode})</th>
+                    <th className="p-3 text-right">Total Amount</th>
+                    <th className="p-3 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {lineItems.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="p-8 text-center text-xs text-slate-400">
+                        No items added to return list. Select a batch above and click "Add to Return List".
+                      </td>
+                    </tr>
+                  ) : (
+                    lineItems.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-950">
+                        <td className="p-3 text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="p-3">
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{item.item_name}</p>
+                          <p className="text-[10px] font-mono text-slate-500">Code: {item.item_code}</p>
                         </td>
-
-                        <td className="p-2.5 text-center font-mono font-bold text-slate-600 dark:text-slate-400">
-                          {line.max_qty || 0}
+                        <td className="p-3">
+                          <span className="font-mono font-bold text-brand-blue block">{item.batch_code}</span>
+                          <span className="text-[10px] font-mono text-slate-400">Exp: {formatDate(item.expiry_date)}</span>
                         </td>
-
-                        <td className="p-1 text-center">
-                          <input
-                            type="number"
-                            min="1"
-                            max={line.max_qty || 9999}
-                            value={line.qty}
-                            onChange={(e) => handleLineChange(index, 'qty', parseInt(e.target.value) || 1)}
-                            className={`w-20 bg-slate-50 dark:bg-slate-900 border rounded-lg p-1.5 text-xs text-center font-bold ${
-                              isRowWarning ? 'border-rose-500 text-rose-600 dark:text-rose-400 font-extrabold bg-rose-50/50' : 'border-slate-300 dark:border-slate-800'
-                            }`}
-                          />
+                        <td className="p-3 text-center font-extrabold text-brand-orange text-sm">{item.quantity}</td>
+                        <td className="p-3 text-right font-mono text-slate-700 dark:text-slate-300">
+                          {formatCurrency(item.unit_rate, currencyCode, decimalPlaces)}
                         </td>
-
-                        <td className="p-1 text-right">
-                          <input
-                            type="number"
-                            step="any"
-                            value={line.unit_price}
-                            onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                            className="w-28 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-1.5 text-xs text-right font-bold"
-                          />
+                        <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                          {formatCurrency(item.total_amount, currencyCode, decimalPlaces)}
                         </td>
-
-                        <td className="p-2.5 text-right font-bold font-mono text-slate-900 dark:text-slate-100">
-                          {formatCurrency(lineSubtotal, currencyCode, decimalPlaces)}
-                        </td>
-
-                        <td className="p-1 text-center">
+                        <td className="p-3 text-center">
                           <button
                             type="button"
-                            onClick={() => removeLine(index)}
-                            disabled={lineItems.length === 1}
-                            className="text-slate-400 hover:text-rose-600 p-1 disabled:opacity-30"
+                            onClick={() => removeLineItem(idx)}
+                            className="text-slate-400 hover:text-rose-600"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Document Attachment Upload Dropzone */}
-          <div className="pt-4">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-rose-600 font-bold">
-                <Paperclip className="w-4 h-4 text-rose-600" />
-                Upload Return Proof / Photos / Document Attachment (Optional)
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Allowed: .pdf, .doc, .docx, .xls, .xlsx, .jpg, .jpeg, .png, .gif, .webp
-              </span>
-            </label>
-
-            {!filePreview ? (
-              <label className="border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-rose-500 dark:hover:border-rose-500 rounded-2xl p-4 flex items-center justify-center gap-3 cursor-pointer bg-slate-50/50 dark:bg-slate-950/40 transition-all group">
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
-                  className="hidden"
-                />
-                <div className="p-2.5 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 group-hover:scale-105 transition-transform">
-                  <UploadCloud className="w-5 h-5" />
-                </div>
-                <div className="text-left">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block group-hover:text-rose-600">
-                    Click to browse or drop return proof document here
-                  </span>
-                  <span className="text-[10px] text-slate-400 block">
-                    Upload defective item photos, credit memo, RMA note, PDF or scanned return proof
-                  </span>
-                </div>
-              </label>
-            ) : (
-              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between animate-in fade-in duration-150">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-1">
-                    <FileCheck className="w-4 h-4" />
-                    <span>{filePreview.ext}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">{filePreview.name}</span>
-                    <span className="text-[10px] text-slate-500 block">Size: {filePreview.size} • Attached</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={removeFile}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
-                  title="Remove file"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Form Totals & Submit */}
-          <div className="flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-800 mt-4">
-            <div className="flex items-center gap-6">
-              <div>
-                <span className="text-[10px] uppercase text-slate-400 block font-bold">Gross Subtotal:</span>
-                <span className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200">{formatCurrency(grossSubtotal, currencyCode, decimalPlaces)}</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase text-slate-400 block font-bold">VAT Amount ({vatRate}%):</span>
-                <span className="text-sm font-bold font-mono text-purple-600 dark:text-purple-400">{formatCurrency(vatAmount, currencyCode, decimalPlaces)}</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase text-slate-400 block font-bold">Grand Total Value:</span>
-                <span className="text-lg font-black font-mono text-rose-600 dark:text-rose-400">{formatCurrency(grandTotalVal, currencyCode, decimalPlaces)}</span>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-rose-800 text-white font-bold text-xs shadow-lg glow-blue hover:brightness-110 active:scale-[0.99] transition-all flex items-center gap-2"
-            >
-              {submitting ? (
-                <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-              ) : (
-                <>
-                  <RotateCcw className="w-4 h-4" />
-                  Dispatch Stock Return Invoice
-                </>
-              )}
-            </button>
-          </div>
-
-        </div>
-      </form>
-
-      {/* Return History Table */}
-      <div className="bg-white dark:bg-slate-900 glass-panel p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
-          <Layers className="w-4 h-4 text-brand-orange" />
-          Stock Returns History & Audit Log ({returnsList.length} Transactions)
-        </h3>
-        <DataTable
-          columns={historyColumns}
-          data={returnsList}
-          searchPlaceholder="Search return #, location, vendor, or reason..."
-          defaultPageSize={10}
-        />
-      </div>
-
-      {/* Selected Return Details Modal */}
-      {selectedReturn && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-4xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
-            
-            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
-                  <RotateCcw className="w-5 h-5 text-rose-600" />
-                  Stock Return Details: <span className="font-mono text-rose-600">{selectedReturn.return_no}</span>
-                </h3>
-                <p className="text-xs text-slate-500">Breakdown of returned items, batch numbers, stock reversal and attached proof</p>
-              </div>
-              <button
-                onClick={() => setSelectedReturn(null)}
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Grid Info */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
-              <div>
-                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Workflow Trajectory</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                  {selectedReturn.return_type === 'CLINIC_TO_BRANCH' ? 'Clinic ➔ Sub-Branch' :
-                   selectedReturn.return_type === 'BRANCH_TO_MAIN' ? 'Sub-Branch ➔ Main Store' :
-                   'Main Store ➔ Vendor'}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Source Location</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{selectedReturn.from_location_name || 'Main Warehouse'}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Destination</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">
-                  {selectedReturn.return_type === 'MAIN_TO_VENDOR' ? selectedReturn.vendor_name : selectedReturn.to_location_name}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-semibold text-[10px] uppercase">Return Reason</span>
-                <span className="font-bold text-rose-600">{selectedReturn.return_reason}</span>
-              </div>
-
-              {selectedReturn.document_url && (
-                <div className="col-span-2 md:col-span-4 bg-emerald-50 dark:bg-emerald-950/60 p-3 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center justify-between mt-1">
-                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
-                    <Paperclip className="w-4 h-4 text-emerald-600" />
-                    <span className="font-bold text-xs">Return Proof / Attachment Document Available</span>
-                  </div>
-                  <a
-                    href={selectedReturn.document_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Open Document Attachment
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* Item Line Items Breakdown */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-              <table className="w-full text-left text-xs bg-white dark:bg-slate-900">
-                <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="p-3">Item Name & Code</th>
-                    <th className="p-3 w-32">Batch Code</th>
-                    <th className="p-3 w-20 text-center">Return Qty</th>
-                    <th className="p-3 w-28 text-right">Unit Cost ({currencyCode})</th>
-                    <th className="p-3 w-28 text-right">Subtotal ({currencyCode})</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  {selectedReturn.items && selectedReturn.items.length > 0 ? (
-                    selectedReturn.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                        <td className="p-3">
-                          <span className="font-bold text-slate-900 dark:text-slate-100 block">{item.item_name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">Code: {item.item_code} • UOM: {item.unit_of_measure}</span>
-                        </td>
-                        <td className="p-3 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
-                          {item.batch_code}
-                        </td>
-                        <td className="p-3 text-center font-bold text-rose-600">
-                          {item.qty}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
-                          {formatCurrency(item.unit_price, currencyCode, decimalPlaces)}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                          {formatCurrency(item.subtotal, currencyCode, decimalPlaces)}
-                        </td>
-                      </tr>
                     ))
-                  ) : (
-                    <tr>
-                      <td colSpan="5" className="p-4 text-center text-slate-400">No item lines found for this return record.</td>
-                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
 
-            {/* Footer Summary */}
-            <div className="flex justify-between items-center pt-2">
-              <div className="text-xs text-slate-500">
-                Created by: <strong>{selectedReturn.created_by_name}</strong> on {formatDate(selectedReturn.created_at)}
+            <div className="flex justify-end pt-3">
+              <button
+                type="submit"
+                disabled={submitting || lineItems.length === 0}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-brand-orange to-amber-600 text-white font-bold text-xs shadow-lg glow-orange hover:opacity-95 disabled:opacity-50 transition-all flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {submitting ? 'Submitting Return Request...' : 'Submit Stock Return Request'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TAB 3: CLINIC RETURN REJECT WALLET (Clinic User) */}
+      {activeTab === 'reject_wallet' && isClinicUser && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-xs text-rose-800 dark:text-rose-300 flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Clinic Return Reject Wallet Isolation</p>
+              <p className="mt-0.5">
+                Items in this reject wallet were returned by your clinic but rejected by the Sub-Branch.
+                They are <strong>isolated from your available OPD dispensing stock</strong>. You may click <strong>Restore to Clinic Stock</strong> to add them back into active stock.
+              </p>
+            </div>
+          </div>
+
+          <DataTable
+            title="Clinic Return Reject Wallet Items"
+            subtitle="Rejected return items currently isolated from normal inventory"
+            columns={rejectWalletColumns}
+            data={clinicRejectWallet}
+            searchable={true}
+            defaultPageSize={10}
+          />
+        </div>
+      )}
+
+      {/* TAB 4: CREDIT NOTES DIRECTORY (Admin) */}
+      {activeTab === 'credit_notes' && isAdmin && (
+        <DataTable
+          title="Generated Branch Credit Notes Directory"
+          subtitle="Audit log of credit notes issued to Sub-Branches for rejected stock returns"
+          columns={creditNotesColumns}
+          data={creditNotes}
+          searchable={true}
+          defaultPageSize={10}
+        />
+      )}
+
+      {/* TAB 5: DAMAGED / REJECTED STOCK (Admin) */}
+      {activeTab === 'damaged_stock' && isAdmin && (
+        <DataTable
+          title="Main Store Damaged & Rejected Stock Ledger"
+          subtitle="Record of rejected branch returns logged as damaged stock"
+          columns={damagedStockColumns}
+          data={damagedStock}
+          searchable={true}
+          defaultPageSize={10}
+        />
+      )}
+
+      {/* TAB 6: SYSTEM RETURNS AUDIT LEDGER */}
+      {activeTab === 'system_audit' && (
+        <DataTable
+          title="Master System Stock Returns Audit Trail"
+          subtitle="Complete chronological audit history of all internal stock returns across the organization"
+          columns={systemAuditColumns}
+          data={systemReturns}
+          searchable={true}
+          defaultPageSize={10}
+        />
+      )}
+
+      {/* Rejection Modal Dialog */}
+      {showRejectModal && selectedWalletReturn && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                  <XCircle className="w-5 h-5 text-rose-600" />
+                  Reject Stock Return ({selectedWalletReturn.return_reference})
+                </h3>
+                <p className="text-xs text-slate-500">Provide a mandatory rejection reason for this return request</p>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Return Value</span>
-                <span className="text-xl font-black text-rose-600 font-heading">
-                  {formatCurrency(selectedReturn.total_val, currencyCode, decimalPlaces)}
-                </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setSelectedWalletReturn(null);
+                }}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectReturnSubmit} className="space-y-4">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                <p><strong>From:</strong> {selectedWalletReturn.from_location_name}</p>
+                <p><strong>Return Reason:</strong> {selectedWalletReturn.reason}</p>
+                <p><strong>Total Items:</strong> {(selectedWalletReturn.items || []).length} Line Items</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Rejection Reason *</label>
+                <textarea
+                  required
+                  rows="3"
+                  value={rejectionReasonInput}
+                  onChange={(e) => setRejectionReasonInput(e.target.value)}
+                  placeholder="e.g. Items damaged upon physical inspection / Incorrect batch returned"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-100 focus:border-rose-600"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setSelectedWalletReturn(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md glow-rose disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <XCircle className="w-4 h-4" />
+                  {submitting ? 'Rejecting Return...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Return Detail Breakdown Modal */}
+      {selectedReturnDetail && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-3xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading">
+                  Stock Return Breakdown ({selectedReturnDetail.return_reference})
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">Created on {formatDate(selectedReturnDetail.created_at)} by {selectedReturnDetail.created_by_name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReturnDetail(null)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 text-xs border border-slate-200 dark:border-slate-800">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">From Location</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{selectedReturnDetail.from_location_name}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">To Location</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{selectedReturnDetail.to_location_name}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Reason</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{selectedReturnDetail.reason}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Status</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 uppercase">{selectedReturnDetail.status}</span>
               </div>
             </div>
 
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-slate-950 font-bold text-slate-700 dark:text-slate-300">
+                  <tr>
+                    <th className="p-3">#</th>
+                    <th className="p-3">Item & Code</th>
+                    <th className="p-3">Batch Code</th>
+                    <th className="p-3 text-center">Returned Qty</th>
+                    <th className="p-3 text-right">Unit Rate ({currencyCode})</th>
+                    <th className="p-3 text-right">Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {(selectedReturnDetail.items || []).map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="p-3 text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="p-3 font-bold">{item.item_name}</td>
+                      <td className="p-3 font-mono text-brand-blue">{item.batch_code}</td>
+                      <td className="p-3 text-center font-extrabold">{item.quantity}</td>
+                      <td className="p-3 text-right font-mono">{formatCurrency(item.unit_rate, currencyCode, decimalPlaces)}</td>
+                      <td className="p-3 text-right font-mono font-bold">{formatCurrency(item.total_amount, currencyCode, decimalPlaces)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedReturnDetail(null)}
+                className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credit Note Detail Breakdown Modal */}
+      {selectedCreditNoteDetail && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-3xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 font-heading flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-purple-600" />
+                  Credit Note ({selectedCreditNoteDetail.credit_note_no})
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">Issued to {selectedCreditNoteDetail.branch_name} on {formatDate(selectedCreditNoteDetail.created_at)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCreditNoteDetail(null)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/60 text-xs space-y-1.5">
+              <p><strong>Sub-Branch:</strong> {selectedCreditNoteDetail.branch_name} ({selectedCreditNoteDetail.branch_code})</p>
+              <p><strong>Rejection Reason:</strong> {selectedCreditNoteDetail.reason}</p>
+              <p><strong>Original Transfer Ref:</strong> {selectedCreditNoteDetail.original_transfer_no || '-'}</p>
+              <p><strong>Issued By:</strong> {selectedCreditNoteDetail.created_by_name}</p>
+            </div>
+
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-slate-950 font-bold text-slate-700 dark:text-slate-300">
+                  <tr>
+                    <th className="p-3">#</th>
+                    <th className="p-3">Item & Code</th>
+                    <th className="p-3">Batch Code</th>
+                    <th className="p-3 text-center">Credited Qty</th>
+                    <th className="p-3 text-right">Unit Rate ({currencyCode})</th>
+                    <th className="p-3 text-right">Credit Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {(selectedCreditNoteDetail.items || []).map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="p-3 text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="p-3 font-bold">{item.item_name}</td>
+                      <td className="p-3 font-mono text-brand-blue">{item.batch_code}</td>
+                      <td className="p-3 text-center font-extrabold">{item.quantity}</td>
+                      <td className="p-3 text-right font-mono">{formatCurrency(item.unit_rate, currencyCode, decimalPlaces)}</td>
+                      <td className="p-3 text-right font-mono font-bold text-purple-600">{formatCurrency(item.total_amount, currencyCode, decimalPlaces)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex justify-between items-center text-sm font-extrabold">
+              <span>Total Credit Note Amount:</span>
+              <span className="font-mono text-purple-600 dark:text-purple-400 text-lg">
+                {formatCurrency(selectedCreditNoteDetail.total_amount, currencyCode, decimalPlaces)}
+              </span>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedCreditNoteDetail(null)}
+                className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 text-xs font-bold"
+              >
+                Close Credit Note
+              </button>
+            </div>
           </div>
         </div>
       )}

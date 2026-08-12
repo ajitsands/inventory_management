@@ -26,7 +26,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     ...(isGlobalOrMainAdmin ? [{ id: 'branch-transfer', label: 'Sub-Branch Invoicing', icon: GitPullRequest, roles: ['ADMIN', 'STORE_MANAGER'] }] : []),
     { id: 'clinic-transfer', label: 'Clinic Stock Transfer', icon: Building, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'opd-sales', label: 'OPD Dispensing (FIFO)', icon: Stethoscope, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER'] },
-    { id: 'returns', label: 'Stock Returns & Defectives', icon: RotateCcw, roles: ['ADMIN', 'STORE_MANAGER'] },
+    { id: 'returns', label: 'Stock Return Wallet', icon: RotateCcw, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER'] },
     { id: 'batches', label: 'Batch Stock Inspector', icon: Boxes, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'] },
     { id: 'reports', label: 'Movement Reports & Valuation', icon: FileSpreadsheet, roles: ['ADMIN', 'STORE_MANAGER', 'AUDITOR'] },
     { id: 'audit-trail', label: 'System Audit Trail', icon: ShieldAlert, roles: ['ADMIN', 'AUDITOR'] },

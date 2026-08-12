@@ -46,7 +46,7 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
   const canSeeMainStorePurchase = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
   const canSeeSubBranchInvoicing = isGlobalOrMainAdmin && ['ADMIN', 'STORE_MANAGER'].includes(role);
   const canSeeClinicTransfer = ['ADMIN', 'STORE_MANAGER'].includes(role);
-  const canSeeStockReturns = ['ADMIN', 'STORE_MANAGER'].includes(role);
+  const canSeeStockReturns = ['ADMIN', 'STORE_MANAGER', 'OPD_USER'].includes(role);
   const canSeeReports = ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'].includes(role);
 
   return (

@@ -76,9 +76,18 @@ $router->post('/api/v1/sales', ['SalesController', 'createSalesInvoice']);
 $router->post('/api/v1/sales/create', ['SalesController', 'createSalesInvoice']);
 $router->get('/api/v1/sales/list', ['SalesController', 'getSalesInvoices']);
 
-// Stock Returns Routes (Clinic -> Branch, Branch -> Main, Main -> Vendor)
+// Stock Returns & Return Wallet Routes (Clinic -> Branch, Branch -> Main Store)
 $router->get('/api/v1/returns', ['ReturnController', 'getReturns']);
+$router->get('/api/v1/returns/eligible-items', ['ReturnController', 'getEligibleItems']);
+$router->post('/api/v1/returns/create', ['ReturnController', 'createReturn']);
 $router->post('/api/v1/returns', ['ReturnController', 'createReturn']);
+$router->get('/api/v1/returns/wallet', ['ReturnController', 'getReturnWallet']);
+$router->post('/api/v1/returns/accept', ['ReturnController', 'acceptReturn']);
+$router->post('/api/v1/returns/reject', ['ReturnController', 'rejectReturn']);
+$router->get('/api/v1/returns/reject-wallet', ['ReturnController', 'getClinicRejectWallet']);
+$router->post('/api/v1/returns/restore-reject', ['ReturnController', 'restoreRejectStock']);
+$router->get('/api/v1/returns/credit-notes', ['ReturnController', 'getCreditNotes']);
+$router->get('/api/v1/returns/damaged-stock', ['ReturnController', 'getDamagedStock']);
 
 // Audit & Report Routes
 $router->get('/api/v1/audit/logs', ['AuditController', 'getLogs']);
