@@ -23,11 +23,11 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     { id: 'purchase', label: 'Vendor Purchase (Main Store)', icon: ShoppingCart, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'branch-transfer', label: 'Sub-Branch Invoicing', icon: GitPullRequest, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'clinic-transfer', label: 'Clinic Stock Transfer', icon: Building, roles: ['ADMIN', 'STORE_MANAGER'] },
-    { id: 'returns', label: 'Stock Returns & Defectives', icon: RotateCcw, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'opd-sales', label: 'OPD Dispensing (FIFO)', icon: Stethoscope, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER'] },
+    { id: 'returns', label: 'Stock Returns & Defectives', icon: RotateCcw, roles: ['ADMIN', 'STORE_MANAGER'] },
     { id: 'batches', label: 'Batch Stock Inspector', icon: Boxes, roles: ['ADMIN', 'STORE_MANAGER', 'OPD_USER', 'AUDITOR'] },
-    { id: 'audit-trail', label: 'System Audit Trail', icon: ShieldAlert, roles: ['ADMIN', 'AUDITOR'] },
     { id: 'reports', label: 'Movement Reports & Valuation', icon: FileSpreadsheet, roles: ['ADMIN', 'STORE_MANAGER', 'AUDITOR'] },
+    { id: 'audit-trail', label: 'System Audit Trail', icon: ShieldAlert, roles: ['ADMIN', 'AUDITOR'] },
     { id: 'user-mgmt', label: 'User Management', icon: Users, roles: ['ADMIN'] },
   ];
 
