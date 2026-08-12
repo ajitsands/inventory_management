@@ -550,7 +550,7 @@ export default function MainStorePurchase() {
                       <td className="p-2.5">
                         <input
                           type="number"
-                          step="0.001"
+                          step="any"
                           required
                           value={line.purchase_price}
                           onChange={(e) => handleLineChange(index, 'purchase_price', e.target.value)}
@@ -562,7 +562,7 @@ export default function MainStorePurchase() {
                       <td className="p-2.5">
                         <input
                           type="number"
-                          step="0.001"
+                          step="any"
                           required
                           value={line.selling_price}
                           onChange={(e) => handleLineChange(index, 'selling_price', e.target.value)}

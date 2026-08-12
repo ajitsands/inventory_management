@@ -391,7 +391,7 @@ export default function VendorQuotations() {
                           <td className="p-3">
                             <input
                               type="number"
-                              step="0.001"
+                              step="any"
                               required
                               value={line.unit_price}
                               onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
