@@ -11,7 +11,8 @@ import {
   Building,
   Stethoscope,
   FileSpreadsheet,
-  ChevronDown
+  ChevronDown,
+  RotateCcw
 } from 'lucide-react';
 
 export default function HorizontalNavbar({ activeTab, setActiveTab }) {
@@ -171,6 +172,21 @@ export default function HorizontalNavbar({ activeTab, setActiveTab }) {
           >
             <Building className={`w-4 h-4 ${activeTab === 'clinic-transfer' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
             <span>Clinic Stock Transfer</span>
+          </button>
+        )}
+
+        {/* 7. Stock Returns */}
+        {canSeeMasters && (
+          <button
+            onClick={() => { setActiveTab('returns'); setMastersOpen(false); }}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              activeTab === 'returns'
+                ? 'bg-gradient-to-r from-[#1C8DCD] to-[#146ca1] text-white shadow-md glow-blue font-bold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+            }`}
+          >
+            <RotateCcw className={`w-4 h-4 ${activeTab === 'returns' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+            <span>Stock Returns</span>
           </button>
         )}
 

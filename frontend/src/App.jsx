@@ -12,6 +12,7 @@ import StoreSettings from './pages/StoreSettings';
 import MainStorePurchase from './pages/MainStorePurchase';
 import SubBranchInvoicing from './pages/SubBranchInvoicing';
 import ClinicStockTransfer from './pages/ClinicStockTransfer';
+import StockReturns from './pages/StockReturns';
 import ClinicSalesPOS from './pages/ClinicSalesPOS';
 import BatchInventory from './pages/BatchInventory';
 import AuditTrailPage from './pages/AuditTrailPage';
@@ -41,6 +42,7 @@ function MainApp() {
         {activeTab === 'purchase' && <MainStorePurchase />}
         {activeTab === 'branch-transfer' && <SubBranchInvoicing />}
         {activeTab === 'clinic-transfer' && <ClinicStockTransfer />}
+        {activeTab === 'returns' && <StockReturns />}
         {activeTab === 'opd-sales' && <ClinicSalesPOS />}
         {activeTab === 'batches' && <BatchInventory />}
         {activeTab === 'audit-trail' && <AuditTrailPage />}

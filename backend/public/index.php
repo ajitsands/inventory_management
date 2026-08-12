@@ -72,6 +72,10 @@ $router->post('/api/v1/transfer/clinic', ['ClinicTransferController', 'createCli
 $router->post('/api/v1/sales/create', ['SalesController', 'createSalesInvoice']);
 $router->get('/api/v1/sales/list', ['SalesController', 'getSalesInvoices']);
 
+// Stock Returns Routes (Clinic -> Branch, Branch -> Main, Main -> Vendor)
+$router->get('/api/v1/returns', ['ReturnController', 'getReturns']);
+$router->post('/api/v1/returns', ['ReturnController', 'createReturn']);
+
 // Audit & Report Routes
 $router->get('/api/v1/audit/logs', ['AuditController', 'getLogs']);
 $router->get('/api/v1/reports/movement-ledger', ['ReportController', 'getMovementLedger']);
