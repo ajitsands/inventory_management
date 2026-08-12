@@ -29,6 +29,8 @@ class BranchTransferController extends Controller
             return;
         }
 
+        $vatPercent = (float)($body['vat_percent'] ?? 10.00);
+
         $pdo = Model::getDB();
         Model::beginTransaction();
 
@@ -37,7 +39,7 @@ class BranchTransferController extends Controller
             $transferNo = 'TRF-' . str_replace(['/', '-'], '', $invoiceNo);
 
             $validatedItems = [];
-            $totalVal = 0.00;
+            $grossSubtotal = 0.00;
 
             foreach ($body['items'] as $idx => $line) {
                 $rawItemId = UrlSecurity::decrypt($line['item_id'] ?? null);
@@ -56,7 +58,7 @@ class BranchTransferController extends Controller
                 }
 
                 $subtotal = $unitPrice * $qty;
-                $totalVal += $subtotal;
+                $grossSubtotal += $subtotal;
 
                 $validatedItems[] = [
                     'item_id'    => $itemId,
@@ -67,16 +69,31 @@ class BranchTransferController extends Controller
                 ];
             }
 
+            $vatAmount = round($grossSubtotal * ($vatPercent / 100), 3);
+            $grandTotal = round($grossSubtotal + $vatAmount, 3);
+            $initialPaid = isset($body['paid_amount']) ? (float)$body['paid_amount'] : $grandTotal;
+
+            $paymentStatus = 'UNPAID';
+            if ($initialPaid >= $grandTotal) {
+                $paymentStatus = 'PAID';
+            } elseif ($initialPaid > 0) {
+                $paymentStatus = 'PARTIAL';
+            }
+
             $stmtHeader = $pdo->prepare("INSERT INTO `stock_transfers` 
-                (`transfer_no`, `from_location_id`, `to_location_id`, `transfer_type`, `status`, `invoice_no`, `total_val`, `remarks`, `created_by`, `dispatched_at`, `received_at`, `received_by`)
-                VALUES (?, ?, ?, 'BRANCH_INVOICED', 'RECEIVED', ?, ?, ?, ?, NOW(), NOW(), ?)");
+                (`transfer_no`, `from_location_id`, `to_location_id`, `transfer_type`, `status`, `invoice_no`, `subtotal`, `vat_amount`, `total_val`, `paid_amount`, `payment_status`, `remarks`, `created_by`, `dispatched_at`, `received_at`, `received_by`)
+                VALUES (?, ?, ?, 'BRANCH_INVOICED', 'RECEIVED', ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)");
 
             $stmtHeader->execute([
                 $transferNo,
                 $fromLoc,
                 $toLoc,
                 $invoiceNo,
-                $totalVal,
+                $grossSubtotal,
+                $vatAmount,
+                $grandTotal,
+                $initialPaid,
+                $paymentStatus,
                 $body['remarks'] ?? null,
                 $user['user_id'],
                 $user['user_id']
@@ -114,7 +131,10 @@ class BranchTransferController extends Controller
                 'invoice_no'  => $invoiceNo,
                 'from_loc'    => $fromLoc,
                 'to_loc'      => $toLoc,
-                'total_val'   => $totalVal
+                'subtotal'    => $grossSubtotal,
+                'vat_amount'  => $vatAmount,
+                'total_val'   => $grandTotal,
+                'paid_amount' => $initialPaid
             ], $fromLoc);
 
             $this->json([
@@ -131,17 +151,99 @@ class BranchTransferController extends Controller
         }
     }
 
+    public function recordPayment()
+    {
+        $user = $this->requireRoles(['ADMIN', 'STORE_MANAGER']);
+        $body = $this->getRequestBody();
+
+        $rawTransferId = UrlSecurity::decrypt($body['transfer_id'] ?? null);
+        $transferId = !empty($rawTransferId) ? (int)$rawTransferId : (int)($body['raw_transfer_id'] ?? $body['transfer_id'] ?? 0);
+        $paymentAmount = (float)($body['amount_paid'] ?? 0.00);
+
+        if (!$transferId || $paymentAmount <= 0) {
+            $this->error('Transfer ID and valid payment amount are required.', 400);
+            return;
+        }
+
+        $pdo = Model::getDB();
+        $stmt = $pdo->prepare("SELECT * FROM `stock_transfers` WHERE `id` = ?");
+        $stmt->execute([$transferId]);
+        $transfer = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$transfer) {
+            $this->error('Transfer record not found.', 404);
+            return;
+        }
+
+        $newPaidAmount = round((float)$transfer['paid_amount'] + $paymentAmount, 3);
+        $grandTotal = (float)$transfer['total_val'];
+
+        $newStatus = 'PARTIAL';
+        if ($newPaidAmount >= $grandTotal) {
+            $newPaidAmount = $grandTotal;
+            $newStatus = 'PAID';
+        }
+
+        $updateStmt = $pdo->prepare("UPDATE `stock_transfers` SET `paid_amount` = ?, `payment_status` = ? WHERE `id` = ?");
+        $updateStmt->execute([$newPaidAmount, $newStatus, $transferId]);
+
+        AuditLogger::log($user['user_id'], $user['username'], $user['role'], 'BRANCH_TRANSFER', 'RECORD_BRANCH_PAYMENT', null, [
+            'transfer_id'   => $transferId,
+            'payment_added' => $paymentAmount,
+            'new_total_paid'=> $newPaidAmount,
+            'status'        => $newStatus
+        ]);
+
+        $this->json([
+            'success'        => true,
+            'message'        => 'Payment of BHD ' . number_format($paymentAmount, 3) . ' recorded successfully!',
+            'paid_amount'    => $newPaidAmount,
+            'payment_status' => $newStatus
+        ]);
+    }
+
     public function getTransfers()
     {
         $this->requireAuth();
         $pdo = Model::getDB();
+
         $sql = "SELECT st.*, fl.name AS from_location_name, tl.name AS to_location_name, u.full_name AS created_by_name
                 FROM `stock_transfers` st
                 JOIN `locations` fl ON st.from_location_id = fl.id
                 JOIN `locations` tl ON st.to_location_id = tl.id
                 JOIN `users` u ON st.created_by = u.id
                 ORDER BY st.id DESC";
-        $transfers = $pdo->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
+
+        $transfers = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtItems = $pdo->prepare("SELECT sti.*, i.name AS item_name, i.item_code, b.batch_code, b.expiry_date
+                                    FROM `stock_transfer_items` sti
+                                    JOIN `items` i ON sti.item_id = i.id
+                                    JOIN `item_batches` b ON sti.batch_id = b.id
+                                    WHERE sti.transfer_id = ?");
+
+        foreach ($transfers as &$tr) {
+            $rawId = (int)$tr['id'];
+            $tr['raw_id'] = $rawId;
+            $tr['id'] = UrlSecurity::encrypt($tr['id']);
+
+            $subtotal = (float)$tr['subtotal'];
+            $grandTotal = (float)$tr['total_val'];
+            if ($subtotal == 0.00 && $grandTotal > 0.00) {
+                $subtotal = round($grandTotal / 1.10, 3);
+                $vatAmount = round($grandTotal - $subtotal, 3);
+                $tr['subtotal'] = $subtotal;
+                $tr['vat_amount'] = $vatAmount;
+            }
+
+            $paid = (float)($tr['paid_amount'] ?? $grandTotal);
+            $tr['paid_amount'] = $paid;
+            $tr['pending_balance'] = max(0.00, round($grandTotal - $paid, 3));
+
+            $stmtItems->execute([$rawId]);
+            $tr['items'] = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+        }
+
         $this->json([
             'success'   => true,
             'transfers' => $transfers

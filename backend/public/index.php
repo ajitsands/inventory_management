@@ -65,6 +65,7 @@ $router->get('/api/v1/purchase/list', ['PurchaseController', 'getPurchaseInvoice
 
 $router->post('/api/v1/transfer/branch', ['BranchTransferController', 'createBranchTransfer']);
 $router->get('/api/v1/transfer/list', ['BranchTransferController', 'getTransfers']);
+$router->post('/api/v1/transfer/record-payment', ['BranchTransferController', 'recordPayment']);
 
 $router->post('/api/v1/transfer/clinic', ['ClinicTransferController', 'createClinicTransfer']);
 
