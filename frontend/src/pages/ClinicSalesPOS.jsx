@@ -129,25 +129,28 @@ export default function ClinicSalesPOS() {
   });
 
   // Calculations
-  const isItemWiseVat = settings.vat_calculation_mode === 'ITEM_WISE';
-  const defaultVatRate = parseFloat(settings.vat_percent || 10.00);
+  const isNoVat = settings.vat_calculation_mode === 'NO_VAT' || parseFloat(settings.vat_percent || 0) === 0;
+  const isItemWiseVat = !isNoVat && settings.vat_calculation_mode === 'ITEM_WISE';
+  const defaultVatRate = isNoVat ? 0 : parseFloat(settings.vat_percent || 10.00);
 
   const grossTotal = cart.reduce((acc, item) => acc + (item.selling_price * item.qty), 0);
   const discountVal = parseFloat(discountAmount || 0);
   const netSubtotalAfterDiscount = Math.max(0, grossTotal - discountVal);
 
-  const calculateItemWiseTotalVat = () => cart.reduce((acc, item) => {
+  const calculateItemWiseTotalVat = () => isNoVat ? 0 : cart.reduce((acc, item) => {
     const itemGross = item.selling_price * item.qty;
     const vatRate = parseFloat(item.vat_percent || 0);
     return acc + (itemGross * (vatRate / 100));
   }, 0);
 
-  const totalVat = isItemWiseVat
+  const totalVat = isNoVat
+    ? 0
+    : isItemWiseVat
     ? calculateItemWiseTotalVat()
     : (netSubtotalAfterDiscount * (defaultVatRate / 100));
 
-  const grandTotal = isItemWiseVat
-    ? (grossTotal + totalVat)
+  const grandTotal = isNoVat || isItemWiseVat
+    ? (grossTotal - discountVal + totalVat)
     : (netSubtotalAfterDiscount + totalVat);
 
   const validateCheckout = () => {
@@ -283,7 +286,7 @@ export default function ClinicSalesPOS() {
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 text-xs font-bold flex items-center gap-1">
             <Calculator className="w-3.5 h-3.5" />
-            VAT Mode: {isItemWiseVat ? 'Line Item Tax' : 'Total Bill Tax'}
+            VAT Mode: {isNoVat ? 'NO VAT (0%)' : isItemWiseVat ? 'Line Item Tax' : 'Total Bill Tax'}
           </span>
           <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 text-xs font-bold">
             Clinic Outlet ({currencyCode})
@@ -526,10 +529,17 @@ export default function ClinicSalesPOS() {
                 </div>
               )}
 
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>VAT Tax ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}):</span>
-                <span className="font-bold text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</span>
-              </div>
+              {!isNoVat ? (
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>VAT Tax ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}):</span>
+                  <span className="font-bold text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-slate-500 dark:text-slate-400 text-xs font-medium">
+                  <span>VAT Tax Policy:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">NO VAT (0%)</span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-800">
                 <span className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-xs">Grand Total Payable:</span>

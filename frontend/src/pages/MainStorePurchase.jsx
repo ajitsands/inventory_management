@@ -216,15 +216,16 @@ export default function MainStorePurchase() {
   };
 
   // Calculations
-  const isItemWiseVat = settings.vat_calculation_mode === 'ITEM_WISE';
-  const defaultVatRate = parseFloat(settings.vat_percent || 10.00);
+  const isNoVat = settings.vat_calculation_mode === 'NO_VAT' || parseFloat(settings.vat_percent || 0) === 0;
+  const isItemWiseVat = !isNoVat && settings.vat_calculation_mode === 'ITEM_WISE';
+  const defaultVatRate = isNoVat ? 0 : parseFloat(settings.vat_percent || 10.00);
 
   const calculateGrossSubtotal = () => lineItems.reduce((acc, line) => {
     const lineGross = parseFloat(line.purchase_price || 0) * parseInt(line.qty || 0);
     return acc + lineGross;
   }, 0);
 
-  const calculateItemWiseTotalVat = () => lineItems.reduce((acc, line) => {
+  const calculateItemWiseTotalVat = () => isNoVat ? 0 : lineItems.reduce((acc, line) => {
     const lineGross = parseFloat(line.purchase_price || 0) * parseInt(line.qty || 0);
     const vatRate = parseFloat(line.vat_percent || 0);
     return acc + (lineGross * (vatRate / 100));
@@ -234,12 +235,14 @@ export default function MainStorePurchase() {
   const discountVal = parseFloat(billDiscount || 0);
   const netSubtotalAfterDiscount = Math.max(0, grossSubtotal - discountVal);
 
-  const totalVat = isItemWiseVat
+  const totalVat = isNoVat
+    ? 0
+    : isItemWiseVat
     ? calculateItemWiseTotalVat()
     : (netSubtotalAfterDiscount * (defaultVatRate / 100));
 
-  const grandTotal = isItemWiseVat
-    ? (grossSubtotal + totalVat)
+  const grandTotal = isNoVat || isItemWiseVat
+    ? (grossSubtotal - discountVal + totalVat)
     : (netSubtotalAfterDiscount + totalVat);
 
   const handleSubmit = async (e) => {
@@ -648,12 +651,20 @@ export default function MainStorePurchase() {
                 </div>
               )}
 
-              <span>
-                Calculated VAT ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}): <strong className="text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</strong>
-              </span>
+              {!isNoVat ? (
+                <span>
+                  Calculated VAT ({isItemWiseVat ? 'Item-Wise' : `${defaultVatRate}% Total`}): <strong className="text-purple-600 dark:text-purple-400">{formatCurrency(totalVat, currencyCode, decimalPlaces)}</strong>
+                </span>
+              ) : (
+                <span className="font-bold text-slate-500">
+                  Tax Policy: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">NO VAT (0%)</span>
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              {isItemWiseVat
+              {isNoVat
+                ? 'NO VAT Tax Mode: Tax is deactivated (0.00% VAT applied across all purchases).'
+                : isItemWiseVat
                 ? 'Item-Wise Tax Mode: Individual VAT % pre-filled and calculated for each item.'
                 : `Total Bill Tax Mode: ${defaultVatRate}% VAT calculated on Net Subtotal (${formatCurrency(netSubtotalAfterDiscount, currencyCode, decimalPlaces)}) after Discount.`}
             </p>
