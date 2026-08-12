@@ -92,7 +92,7 @@ export default function SubBranchInvoicing() {
         updated[index].item_id = selectedBatch.item_id;
         updated[index].raw_item_id = selectedBatch.raw_item_id || selectedBatch.item_id;
         updated[index].raw_batch_id = selectedBatch.raw_batch_id || selectedBatch.raw_id || selectedBatch.batch_id || selectedBatch.id;
-        updated[index].unit_price = selectedBatch.purchase_price || selectedBatch.selling_price;
+        updated[index].unit_price = selectedBatch.selling_price || selectedBatch.purchase_price;
         updated[index].max_qty = selectedBatch.quantity_available;
       }
     }
@@ -512,7 +512,7 @@ export default function SubBranchInvoicing() {
                   <th className="p-2.5 min-w-[420px]">Main Store Batch Code & Item *</th>
                   <th className="p-2.5 w-28 text-center">Qty Available</th>
                   <th className="p-2.5 w-24 text-center">Transfer Qty *</th>
-                  <th className="p-2.5 w-32 text-right">Unit Cost ({currencyCode})</th>
+                  <th className="p-2.5 w-32 text-right">Selling Price ({currencyCode})</th>
                   <th className="p-2.5 w-32 text-right">Subtotal ({currencyCode})</th>
                   <th className="p-2.5 w-10 text-center"></th>
                 </tr>
