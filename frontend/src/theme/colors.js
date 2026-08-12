@@ -22,6 +22,9 @@ export const MOVEMENT_BADGES = {
   CLINIC_TRANSFER: { label: 'Clinic Stock Transfer', color: 'text-cyan-700 bg-cyan-100 border-cyan-300 dark:text-cyan-300 dark:bg-cyan-950/60' },
   CUSTOMER_SALE: { label: 'OPD Patient Sale (FIFO)', color: 'text-amber-700 bg-amber-100 border-amber-300 dark:text-amber-300 dark:bg-amber-950/60' },
   STOCK_RETURN: { label: 'Stock Return', color: 'text-rose-700 bg-rose-100 border-rose-300 dark:text-rose-300 dark:bg-rose-950/60 font-bold' },
+  STOCK_RETURN_OUT: { label: 'Stock Return (Outbound)', color: 'text-rose-700 bg-rose-100 border-rose-300 dark:text-rose-300 dark:bg-rose-950/60 font-bold' },
+  STOCK_RETURN_VENDOR: { label: 'Return to Vendor', color: 'text-rose-800 bg-rose-200 border-rose-400 dark:text-rose-200 dark:bg-rose-900/80 font-bold' },
+  STOCK_DAMAGED: { label: 'Damaged Stock Move', color: 'text-red-700 bg-red-100 border-red-300 dark:text-red-300 dark:bg-red-950/80 font-bold' },
   ADJUSTMENT: { label: 'Stock Adjustment', color: 'text-purple-700 bg-purple-100 border-purple-300 dark:text-purple-300 dark:bg-purple-950/60' },
 };
 

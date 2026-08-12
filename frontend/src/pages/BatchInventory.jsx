@@ -491,12 +491,13 @@ export default function BatchInventory() {
                   <div className="relative border-l-2 border-slate-200 dark:border-slate-800 ml-4 space-y-6 py-2">
                     {timelineData.timeline && timelineData.timeline.length > 0 ? (
                       timelineData.timeline.map((step, index) => {
-                        const badge = MOVEMENT_BADGES[step.transaction_type] || { label: step.transaction_type, color: 'text-slate-700 bg-slate-100' };
-                        const StepIcon = step.transaction_type === 'PURCHASE' ? ShoppingCart :
-                                         step.transaction_type === 'BRANCH_TRANSFER' ? GitPullRequest :
-                                         step.transaction_type === 'CLINIC_TRANSFER' ? Building :
-                                         step.transaction_type === 'CUSTOMER_SALE' ? Stethoscope :
-                                         step.transaction_type === 'STOCK_RETURN' ? RotateCcw : Activity;
+                        const type = (!step.transaction_type && step.reference_no?.startsWith('RET-')) ? 'STOCK_RETURN' : step.transaction_type;
+                        const badge = MOVEMENT_BADGES[type] || { label: type || 'Unknown', color: 'text-slate-700 bg-slate-100' };
+                        const StepIcon = type === 'PURCHASE' ? ShoppingCart :
+                                         type === 'BRANCH_TRANSFER' ? GitPullRequest :
+                                         type === 'CLINIC_TRANSFER' ? Building :
+                                         type === 'CUSTOMER_SALE' ? Stethoscope :
+                                         (type === 'STOCK_RETURN' || type === 'STOCK_RETURN_OUT' || type === 'STOCK_RETURN_VENDOR') ? RotateCcw : Activity;
 
                         return (
                           <div key={index} className="relative pl-6 group">

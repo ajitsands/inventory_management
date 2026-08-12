@@ -51,7 +51,8 @@ export default function ReportsPage() {
       header: 'Movement Type',
       accessor: 'transaction_type',
       render: (m) => {
-        const badge = MOVEMENT_BADGES[m.transaction_type] || { label: m.transaction_type, color: 'text-slate-600 bg-slate-100' };
+        const type = (!m.transaction_type && m.reference_no?.startsWith('RET-')) ? 'STOCK_RETURN' : m.transaction_type;
+        const badge = MOVEMENT_BADGES[type] || { label: type || 'Unknown', color: 'text-slate-600 bg-slate-100' };
         return (
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
             {badge.label}
